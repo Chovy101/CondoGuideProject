@@ -5,17 +5,23 @@ let mysqlAvailable: boolean | null = null;
 
 function getPool(): mysql.Pool {
   if (!pool) {
+    const isCloud = Boolean(
+      process.env.DB_HOST &&
+      process.env.DB_HOST !== 'localhost' &&
+      process.env.DB_HOST !== '127.0.0.1'
+    );
     pool = mysql.createPool({
       host: process.env.DB_HOST || 'localhost',
       port: Number(process.env.DB_PORT) || 3306,
       user: process.env.DB_USER || 'root',
       password: process.env.DB_PASSWORD || '',
       database: process.env.DB_NAME || 'condoguide',
-      waitForConnections: false,
-      connectionLimit: 5,
+      waitForConnections: true,
+      connectionLimit: 10,
       queueLimit: 0,
       charset: 'utf8mb4',
-      connectTimeout: 1500,
+      connectTimeout: 10000,
+      ssl: isCloud ? { minVersion: 'TLSv1.2', rejectUnauthorized: false } : undefined,
     });
   }
   return pool;
