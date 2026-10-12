@@ -1,36 +1,96 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🏢 CondoGuide (แพลตฟอร์มค้นหาและรีวิวคอนโดมิเนียม)
 
-## Getting Started
+เว็บไซต์ระบบสารสนเทศ (Information Platform) รวบรวมข้อมูลคอนโดมิเนียม อพาร์ทเม้นต์ พร้อมระบบรีวิวและการจัดการข้อมูลแบบ Full-stack พัฒนาด้วย **Next.js 16 (App Router)**, **TypeScript**, **MySQL** และ **Vanilla CSS Design System**
 
-First, run the development server:
+---
 
+## 👥 สมาชิกกลุ่ม (ไม่เกิน 3 คน)
+1. **นาย/นางสาว [ชื่อ-นามสกุล]** — รหัสนักศึกษา: `6xxxxxxxx-1` (Frontend & UI/UX Design)
+2. **นาย/นางสาว [ชื่อ-นามสกุล]** — รหัสนักศึกษา: `6xxxxxxxx-2` (Backend & Database Architecture)
+3. **นาย/นางสาว [ชื่อ-นามสกุล]** — รหัสนักศึกษา: `6xxxxxxxx-3` (Fullstack & Admin Dashboard)
+
+*(สามารถแก้ไขข้อมูลสมาชิกเพิ่มเติมได้ที่ไฟล์ `src/app/team/page.tsx` หรือดูได้ที่หน้าเว็บ `/team`)*
+
+---
+
+## 🎯 คุณสมบัติของระบบตามข้อกำหนด
+- [x] **Information Website:** เว็บไซต์แนะนำคอนโดมิเนียม แสดงรูปภาพ ราคา ทำเล สิ่งอำนวยความสะดวก และรีวิวจริง
+- [x] **Frontend & Backend ในตัวเดียว:** ใช้ Next.js App Router เชื่อมต่อ RESTful API Routes ภายในโปรเจกต์
+- [x] **Next.js + MySQL Database:** รองรับการเชื่อมต่อ MySQL พร้อมระบบ Resilient In-Memory Fallback 
+- [x] **CRUD อย่างน้อย 2 ตาราง (มีความสัมพันธ์กัน):**
+  - **ตารางที่ 1 `condos`:** Create (`/admin/condos/new`), Read (`/condos`, `/condos/[slug]`), Update (`/admin/condos/[slug]/edit`), Delete (`/admin/condos`)
+  - **ตารางที่ 2 `categories`:** Create (`/admin/categories`), Read (`/categories`), Update (`/admin/categories`), Delete (`/admin/categories`)
+  - *ตารางเสริม:* `reviews` (รีวิวคอนโด) และ `users` (จัดการผู้ใช้งาน)
+  - *ความสัมพันธ์:* `condos.category_id` เชื่อมโยงกับ `categories.id` (1:N Relation)
+- [x] **Authentication:** ระบบสมัครสมาชิกและเข้าสู่ระบบด้วย JWT Token (jose) + HttpOnly Cookies + Bcrypt Hash
+- [x] **Admin Dashboard:** หน้าสรุปข้อมูลสถิติสำคัญ (`/admin`) ยอดผู้ใช้, ยอดคอนโด, ยอดรีวิว, คอนโดยอดนิยม, สัดส่วนหมวดหมู่
+- [x] **Responsive UI:** รองรับการแสดงผลทุกหน้าจอบน Desktop, Tablet และ Mobile สไตล์ Modern Dark Glassmorphism
+
+---
+
+## 🔑 บัญชีทดสอบ (Test Accounts)
+
+| สิทธิ์ (Role) | อีเมล (Email) | รหัสผ่าน (Password) | สิทธิ์การเข้าถึง |
+| :--- | :--- | :--- | :--- |
+| **Admin** | `admin@condoguide.com` | `password` | เข้าใช้งานได้ทุกหน้า รวมทั้งแผงควบคุม `/admin` |
+| **User** | `user@condoguide.com` | `password` | ค้นหาคอนโด, เขียนรีวิว, จัดการโปรไฟล์ |
+
+---
+
+## 🚀 วิธีการติดตั้งและเริ่มใช้งาน
+
+### 1. ติดตั้ง Dependencies
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. ตั้งค่าฐานข้อมูล (MySQL)
+ไฟล์ Schema และข้อมูลจำลอง (Seed Data) อยู่ที่ `database/schema.sql`
+สามารถนำไป Import เข้า MySQL ผ่าน phpMyAdmin, MySQL Workbench หรือ CLI:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```sql
+-- สร้างฐานข้อมูลและนำเข้าข้อมูล
+mysql -u root -p < database/schema.sql
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+การตั้งค่าการเชื่อมต่อในไฟล์ `.env.local`:
+```env
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=condoguide
+JWT_SECRET=condoguide_super_secret_jwt_key_2024
+```
+> **หมายเหตุ:** หากยังไม่ได้เปิด MySQL Service หรืออยู่ในขั้นตอนตรวจงาน ระบบจะสลับไปใช้ **In-Memory Seed Data Engine** โดยอัตโนมัติ ทำให้เว็บไซต์และระบบ CRUD/Login/Dashboard สามารถทดสอบได้ทันที 100% โดยไม่เกิดข้อผิดพลาด
 
-## Learn More
+### 3. รัน Development Server
+```bash
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+เปิดบราวเซอร์ที่ [http://localhost:3000](http://localhost:3000)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🗺️ เส้นทางหน้าเว็บหลัก (Sitemap)
 
-## Deploy on Vercel
+### ฝั่งผู้ใช้งานทั่วไป (Frontend)
+- `/` — หน้าแรก (Hero, สถิติ, หมวดหมู่แนะนำ, คอนโดแนะนำ)
+- `/condos` — หน้ารวมคอนโดทั้งหมด (ค้นหา, ตัวกรองราคา, กรองตามหมวดหมู่)
+- `/condos/[slug]` — หน้ารายละเอียดคอนโด (แกลเลอรี, สิ่งอำนวยความสะดวก, แผนที่, อ่านและเขียนรีวิว)
+- `/categories` — หน้าแสดงหมวดหมู่คอนโดทั้งหมด
+- `/team` — หน้าคณะผู้จัดทำโครงการ (สมาชิกกลุ่ม 3 คน)
+- `/auth/login` — หน้าเข้าสู่ระบบ
+- `/auth/register` — หน้าสมัครสมาชิก
+- `/profile` — หน้าโปรไฟล์ผู้ใช้และประวัติการเขียนรีวิว
+- `/reviews/write` — หน้าเขียนรีวิวคอนโดใหม่
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### ฝั่งผู้ดูแลระบบ (Admin / Backend)
+- `/admin` — หน้า Dashboard สรุปสถิติสำคัญและกิจกรรมล่าสุด
+- `/admin/condos` — จัดการคอนโด (CRUD: ดูรายการ, ค้นหา, ลบ, แก้ไข)
+- `/admin/condos/new` — ฟอร์มเพิ่มคอนโดใหม่
+- `/admin/condos/[slug]/edit` — ฟอร์มแก้ไขข้อมูลคอนโด
+- `/admin/categories` — จัดการหมวดหมู่ (CRUD: เพิ่ม, แก้ไข, ลบ)
+- `/admin/reviews` — จัดการและลบรีวิว
+- `/admin/users` — จัดการผู้ใช้งาน (เพิ่มแอดมิน, ลบผู้ใช้)
