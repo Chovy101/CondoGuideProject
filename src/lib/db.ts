@@ -1,4 +1,6 @@
 import mysql from 'mysql2/promise';
+import fs from 'fs';
+import path from 'path';
 
 let pool: mysql.Pool | null = null;
 let mysqlAvailable: boolean | null = null;
@@ -202,6 +204,28 @@ export function syncCondoRatings(store: { condos: MockCondo[]; reviews: MockRevi
   });
 }
 
+function getDataFilePath(): string {
+  return path.join(process.cwd(), 'database', 'data_store.json');
+}
+
+export function persistStore(store: {
+  users: MockUser[];
+  categories: MockCategory[];
+  condos: MockCondo[];
+  reviews: MockReview[];
+  dailyViews: MockDailyView[];
+}) {
+  try {
+    const dataDir = path.join(process.cwd(), 'database');
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    fs.writeFileSync(getDataFilePath(), JSON.stringify(store, null, 2), 'utf-8');
+  } catch {
+    // Read-only filesystem in serverless environments, ignore
+  }
+}
+
 function initStore() {
   if (globalStore.__condoStore && globalStore.__condoStore.condos[0]?.image_url?.startsWith('/images/condos/')) {
     globalStore.__condoStore.dailyViews = globalStore.__condoStore.dailyViews || [];
@@ -228,7 +252,32 @@ function initStore() {
       }
     });
     syncCondoRatings(globalStore.__condoStore);
+    if (!fs.existsSync(getDataFilePath())) {
+      persistStore(globalStore.__condoStore);
+    }
     return globalStore.__condoStore;
+  }
+
+  // 1. Try loading persistent file from disk
+  try {
+    const dataPath = getDataFilePath();
+    if (fs.existsSync(dataPath)) {
+      const raw = fs.readFileSync(dataPath, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.users) && Array.isArray(parsed.condos) && Array.isArray(parsed.categories)) {
+        globalStore.__condoStore = {
+          users: parsed.users,
+          categories: parsed.categories,
+          condos: parsed.condos,
+          reviews: parsed.reviews || defaultSeedReviews.map(r => ({ ...r })),
+          dailyViews: parsed.dailyViews || [],
+        };
+        syncCondoRatings(globalStore.__condoStore);
+        return globalStore.__condoStore;
+      }
+    }
+  } catch {
+    // fallback to initial seed
   }
 
   // Initial seed data matching database/schema.sql
@@ -567,6 +616,7 @@ function initStore() {
   const dailyViews: MockDailyView[] = [];
   globalStore.__condoStore = { users, categories, condos, reviews, dailyViews };
   syncCondoRatings(globalStore.__condoStore);
+  persistStore(globalStore.__condoStore);
   return globalStore.__condoStore;
 }
 
@@ -929,6 +979,7 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
+    persistStore(store);
     return { insertId: newId, affectedRows: 1 } as unknown as T;
   }
 
@@ -959,6 +1010,7 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
       color: color || '#C8963E',
       created_at: new Date().toISOString(),
     });
+    persistStore(store);
     return { insertId: newId, affectedRows: 1 } as unknown as T;
   }
 
@@ -981,6 +1033,7 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
         cat.description = String(params[3]);
         cat.color = String(params[4]);
       }
+      persistStore(store);
     }
     return { affectedRows: cat ? 1 : 0 } as unknown as T;
   }
@@ -989,6 +1042,7 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
   if (lower.startsWith('delete from categories')) {
     const id = Number(params[0]);
     store.categories = store.categories.filter(c => c.id !== id);
+    persistStore(store);
     return { affectedRows: 1 } as unknown as T;
   }
 
@@ -1034,6 +1088,7 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
+    persistStore(store);
     return { insertId: newId, affectedRows: 1 } as unknown as T;
   }
 
@@ -1053,6 +1108,7 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
         view_count: 1,
       });
     }
+    persistStore(store);
     return { affectedRows: 1 } as unknown as T;
   }
 
@@ -1063,13 +1119,17 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
       const condo = store.condos.find(c => c.slug === slug);
       if (condo) {
         condo.view_count += 1;
+        persistStore(store);
       }
       return { affectedRows: 1 } as unknown as T;
     }
     if (lower.includes('is_active = 0')) {
       const slug = String(params[0]);
       const condo = store.condos.find(c => c.slug === slug);
-      if (condo) condo.is_active = false;
+      if (condo) {
+        condo.is_active = false;
+        persistStore(store);
+      }
       return { affectedRows: 1 } as unknown as T;
     }
     const slug = String(params[params.length - 1]);
@@ -1087,6 +1147,7 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
         });
       }
       condo.updated_at = new Date().toISOString();
+      persistStore(store);
     }
     return { affectedRows: 1 } as unknown as T;
   }
@@ -1095,6 +1156,7 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
   if (lower.startsWith('delete from condos')) {
     const slugOrId = params[0];
     store.condos = store.condos.filter(c => c.slug !== slugOrId && c.id !== Number(slugOrId));
+    persistStore(store);
     return { affectedRows: 1 } as unknown as T;
   }
 
@@ -1124,6 +1186,7 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
       targetCondo.review_count = cReviews.length;
       targetCondo.rating = Number((cReviews.reduce((sum, r) => sum + r.rating, 0) / cReviews.length).toFixed(1));
     }
+    persistStore(store);
     return { insertId: newId, affectedRows: 1 } as unknown as T;
   }
 
@@ -1132,6 +1195,7 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
     const id = Number(params[0]);
     store.reviews = store.reviews.filter(r => r.id !== id);
     syncCondoRatings(store);
+    persistStore(store);
     return { affectedRows: 1 } as unknown as T;
   }
 
@@ -1147,6 +1211,7 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
     store.reviews = store.reviews.filter(r => r.user_id !== id);
     syncCondoRatings(store);
     const affected = beforeLen - store.users.length;
+    persistStore(store);
     return { affectedRows: affected } as unknown as T;
   }
 
@@ -1161,6 +1226,7 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
         target.role = role || target.role;
         target.password = password;
         target.updated_at = new Date().toISOString();
+        persistStore(store);
         return { affectedRows: 1 } as unknown as T;
       }
     } else {
@@ -1171,6 +1237,7 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
         target.email = email;
         target.role = role || target.role;
         target.updated_at = new Date().toISOString();
+        persistStore(store);
         return { affectedRows: 1 } as unknown as T;
       }
     }
@@ -1193,14 +1260,15 @@ export async function query<T = unknown>(sql: string, params?: unknown[]): Promi
       );
       mysqlAvailable = true;
       return results as T;
-    } catch {
-      // Mark MySQL as unavailable and fall back to in-memory store
+    } catch (err: unknown) {
+      // Mark MySQL as unavailable and fall back to persistent file-backed store
       mysqlAvailable = false;
-      console.warn('[DB Engine] MySQL unavailable, using resilient in-memory database store');
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[DB Engine] MySQL connection failed (${msg}), using persistent file-backed database store`);
     }
   }
 
-  // Fallback to in-memory store
+  // Fallback to persistent file-backed store
   return runMockQuery<T>(sql, params || []);
 }
 
