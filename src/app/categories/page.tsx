@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { query } from '@/lib/db';
 import { getCategoryThaiName, renderCategoryIcon } from '@/lib/categories';
 
+export const instant = false;
+
 interface Category {
   id: number;
   name: string;

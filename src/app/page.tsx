@@ -4,6 +4,8 @@ import Hero3DSection from '@/components/Hero3DSection';
 import CondoCardImage from '@/components/CondoCardImage';
 import { getCategoryThaiName, renderCategoryIcon } from '@/lib/categories';
 
+export const instant = false;
+
 interface Condo {
   id: number;
   name: string;
