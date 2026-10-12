@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS categories (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
+  name_th VARCHAR(100) DEFAULT NULL,
   slug VARCHAR(100) NOT NULL UNIQUE,
   icon VARCHAR(50) DEFAULT '🏢',
   description TEXT,
@@ -98,13 +99,13 @@ INSERT IGNORE INTO users (name, email, password, role) VALUES
 ('Test User', 'user@condoguide.com', '$2b$10$m3ZS41rPWrtt6tr9PzjI7uH/EaIdBeVLXPYeshuo.oShLyvfdA/86', 'user');
 
 -- Seed categories
-INSERT IGNORE INTO categories (name, slug, icon, description, color) VALUES
-('Luxury', 'luxury', '👑', 'คอนโดหรูระดับพรีเมียม', '#f59e0b'),
-('Budget', 'budget', '💰', 'คอนโดราคาประหยัด คุ้มค่า', '#10b981'),
-('Studio', 'studio', '🏠', 'ห้อง Studio สำหรับคนเดียว', '#6366f1'),
-('Family', 'family', '👨‍👩‍👧‍👦', 'คอนโดเหมาะสำหรับครอบครัว', '#ec4899'),
-('Pet Friendly', 'pet-friendly', '🐾', 'คอนโดที่รับเลี้ยงสัตว์เลี้ยง', '#f97316'),
-('Near BTS/MRT', 'near-bts-mrt', '🚆', 'คอนโดใกล้รถไฟฟ้า', '#3b82f6');
+INSERT IGNORE INTO categories (name, name_th, slug, icon, description, color) VALUES
+('Luxury', 'หรูหรา', 'luxury', '👑', 'คอนโดหรูระดับพรีเมียม ดีไซน์ระดับโลก', '#C8963E'),
+('Budget', 'ราคาประหยัด', 'budget', '💰', 'คอนโดราคาประหยัด คุ้มค่า เดินทางสะดวก', '#245842'),
+('Studio', 'สตูดิโอ', 'studio', '🏠', 'ห้อง Studio กะทัดรัด สำหรับคนทำงานรุ่นใหม่', '#4A5B73'),
+('Family', 'ครอบครัว', 'family', '👨‍👩‍👧‍👦', 'คอนโดห้องใหญ่ สิ่งอำนวยความสะดวกครบสำหรับครอบครัว', '#8F5E36'),
+('Pet Friendly', 'เลี้ยงสัตว์ได้', 'pet-friendly', '🐾', 'คอนโดที่อนุญาตให้เลี้ยงสัตว์เลี้ยงได้', '#A46343'),
+('Near BTS/MRT', 'ใกล้รถไฟฟ้า', 'near-bts-mrt', '🚆', 'คอนโดติดรถไฟฟ้า เดินทางเข้าเมืองได้ในไม่กี่นาที', '#1E5E45');
 
 -- Seed condos
 INSERT IGNORE INTO condos (name, slug, category_id, description, address, district, province, price_min, price_max, price_type, bedrooms, bathrooms, area_min, area_max, floor_total, unit_total, year_built, facilities, image_url, image_alt, image_credit, image_is_illustrative, rating, review_count, is_featured, created_by) VALUES
