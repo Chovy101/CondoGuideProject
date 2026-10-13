@@ -101,22 +101,140 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Explicitly set is_approved = 1 so review displays publicly immediately
-  const result = await query<{ insertId: number }>(
-    'INSERT INTO reviews (condo_id, user_id, rating, title, content, pros, cons, is_approved) VALUES (?, ?, ?, ?, ?, ?, ?, 1)',
-    [numericCondoId, session.id, numericRating, cleanTitle, cleanContent, cleanPros, cleanCons]
+  try {
+    // Explicitly set is_approved = 1 so review displays publicly immediately
+    const result = await query<{ insertId: number }>(
+      'INSERT INTO reviews (condo_id, user_id, rating, title, content, pros, cons, is_approved) VALUES (?, ?, ?, ?, ?, ?, ?, 1)',
+      [numericCondoId, session.id, numericRating, cleanTitle, cleanContent, cleanPros, cleanCons]
+    );
+
+    // Recalculate and update rating & review_count on condo table
+    await query(
+      `UPDATE condos SET 
+       rating = COALESCE((SELECT ROUND(AVG(rating), 1) FROM reviews WHERE condo_id = ? AND is_approved = 1), 0),
+       review_count = (SELECT COUNT(*) FROM reviews WHERE condo_id = ? AND is_approved = 1)
+       WHERE id = ?`,
+      [numericCondoId, numericCondoId, numericCondoId]
+    );
+
+    // Invalidate Next.js cache so the updated reviews and rating are fresh on the next visit
+    try {
+      if (condoSlug) {
+        revalidatePath(`/condos/${condoSlug}`);
+      }
+      revalidatePath('/condos');
+      revalidatePath('/');
+      revalidatePath('/admin');
+      revalidatePath('/admin/reviews');
+    } catch (err) {
+      console.warn('[Review Cache] revalidatePath notice:', err);
+    }
+
+    const newReview = {
+      id: result.insertId,
+      condo_id: numericCondoId,
+      user_id: session.id,
+      user_name: session.name || 'ผู้พักอาศัย',
+      rating: numericRating,
+      title: cleanTitle,
+      content: cleanContent,
+      pros: cleanPros,
+      cons: cleanCons,
+      is_approved: true,
+      created_at: new Date().toISOString(),
+    };
+
+    return NextResponse.json(
+      {
+        success: true,
+        id: result.insertId,
+        review: newReview,
+        message: 'บันทึกรีวิวของคุณเรียบร้อยแล้ว ขอบคุณสำหรับข้อมูล',
+      },
+      { status: 201 }
+    );
+  } catch (dbErr: unknown) {
+    const err = dbErr as { code?: string; message?: string };
+    if (err?.code === 'ER_DUP_ENTRY' || err?.message?.includes('Duplicate entry')) {
+      return NextResponse.json(
+        { error: 'คุณเคยเขียนรีวิวโครงการนี้แล้ว (จำกัด 1 รีวิวต่อ 1 โครงการ)' },
+        { status: 409 }
+      );
+    }
+    throw dbErr;
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  const session = await getSession();
+  if (!session || !session.id) {
+    return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบก่อนแก้ไขรีวิว' }, { status: 401 });
+  }
+
+  const body = await request.json();
+  const { id, rating, title, content, pros, cons } = body;
+  const numericId = Number(id);
+  const numericRating = Math.round(Number(rating));
+
+  if (!numericId || isNaN(numericId)) {
+    return NextResponse.json({ error: 'ไม่พบรหัสรีวิวที่ต้องการแก้ไข' }, { status: 400 });
+  }
+
+  if (!numericRating || numericRating < 1 || numericRating > 5) {
+    return NextResponse.json({ error: 'กรุณาเลือกคะแนนความพึงพอใจ 1 - 5 ดาว' }, { status: 400 });
+  }
+
+  const cleanTitle = sanitizeText(title, 200);
+  const cleanContent = sanitizeText(content, 2000);
+  const cleanPros = sanitizeText(pros, 500);
+  const cleanCons = sanitizeText(cons, 500);
+
+  if (cleanTitle.length < 3) {
+    return NextResponse.json({ error: 'หัวข้อรีวิวต้องมีความยาวอย่างน้อย 3 ตัวอักษร' }, { status: 400 });
+  }
+
+  if (cleanContent.length < 10) {
+    return NextResponse.json({ error: 'รายละเอียดความคิดเห็นต้องมีความยาวอย่างน้อย 10 ตัวอักษร' }, { status: 400 });
+  }
+
+  // Find existing review
+  const reviews = await query<Array<{ id: number; condo_id: number; user_id: number }>>(
+    'SELECT id, condo_id, user_id FROM reviews WHERE id = ?',
+    [numericId]
   );
 
-  // Recalculate and update rating & review_count on condo table
+  if (!reviews || reviews.length === 0) {
+    return NextResponse.json({ error: 'ไม่พบรีวิวที่ต้องการแก้ไข' }, { status: 404 });
+  }
+
+  const targetReview = reviews[0];
+
+  // Verify ownership: only the review author (or admin) can edit
+  if (targetReview.user_id !== session.id && session.role !== 'admin') {
+    return NextResponse.json({ error: 'คุณไม่มีสิทธิ์แก้ไขรีวิวของผู้อื่น' }, { status: 403 });
+  }
+
+  await query(
+    'UPDATE reviews SET rating = ?, title = ?, content = ?, pros = ?, cons = ?, updated_at = NOW() WHERE id = ? AND user_id = ?',
+    [numericRating, cleanTitle, cleanContent, cleanPros, cleanCons, numericId, targetReview.user_id]
+  );
+
+  // Recalculate and update condo rating and review_count
   await query(
     `UPDATE condos SET 
      rating = COALESCE((SELECT ROUND(AVG(rating), 1) FROM reviews WHERE condo_id = ? AND is_approved = 1), 0),
      review_count = (SELECT COUNT(*) FROM reviews WHERE condo_id = ? AND is_approved = 1)
      WHERE id = ?`,
-    [numericCondoId, numericCondoId, numericCondoId]
+    [targetReview.condo_id, targetReview.condo_id, targetReview.condo_id]
   );
 
-  // Invalidate Next.js cache so the updated reviews and rating are fresh on the next visit
+  // Revalidate cache
+  const condoRows = await query<Array<{ slug: string }>>(
+    'SELECT slug FROM condos WHERE id = ?',
+    [targetReview.condo_id]
+  );
+  const condoSlug = condoRows[0]?.slug;
+
   try {
     if (condoSlug) {
       revalidatePath(`/condos/${condoSlug}`);
@@ -126,13 +244,13 @@ export async function POST(request: NextRequest) {
     revalidatePath('/admin');
     revalidatePath('/admin/reviews');
   } catch (err) {
-    console.warn('[Review Cache] revalidatePath notice:', err);
+    console.warn('[Review Update Cache] revalidatePath notice:', err);
   }
 
-  const newReview = {
-    id: result.insertId,
-    condo_id: numericCondoId,
-    user_id: session.id,
+  const updatedReview = {
+    id: numericId,
+    condo_id: targetReview.condo_id,
+    user_id: targetReview.user_id,
     user_name: session.name || 'ผู้พักอาศัย',
     rating: numericRating,
     title: cleanTitle,
@@ -140,18 +258,14 @@ export async function POST(request: NextRequest) {
     pros: cleanPros,
     cons: cleanCons,
     is_approved: true,
-    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   };
 
-  return NextResponse.json(
-    {
-      success: true,
-      id: result.insertId,
-      review: newReview,
-      message: 'บันทึกรีวิวของคุณเรียบร้อยแล้ว ขอบคุณสำหรับข้อมูล',
-    },
-    { status: 201 }
-  );
+  return NextResponse.json({
+    success: true,
+    review: updatedReview,
+    message: 'แก้ไขรีวิวของคุณเรียบร้อยแล้ว ขอบคุณสำหรับข้อมูล',
+  });
 }
 
 export async function DELETE(request: NextRequest) {

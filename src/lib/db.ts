@@ -829,12 +829,49 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
     }
 
     let revs = [...store.reviews];
-    if (lower.includes('r.condo_id = ?')) {
+
+    // 1. Single review lookup by id: WHERE id = ?
+    if (lower.includes('where id = ?') || lower.includes('where r.id = ?')) {
+      const targetId = Number(params[0]);
+      revs = revs.filter(r => r.id === targetId);
+    }
+    // 2. Lookup existing review by condo and user: WHERE condo_id = ? AND user_id = ?
+    else if (
+      (lower.includes('condo_id = ?') || lower.includes('r.condo_id = ?')) &&
+      (lower.includes('user_id = ?') || lower.includes('r.user_id = ?'))
+    ) {
+      const targetCondoId = Number(params[0]);
+      const targetUserId = Number(params[1]);
+      revs = revs.filter(r => r.condo_id === targetCondoId && r.user_id === targetUserId);
+    }
+    // 3. Filter by condo_id: WHERE condo_id = ?
+    else if (lower.includes('condo_id = ?') || lower.includes('r.condo_id = ?')) {
       const condoId = Number(params[0]);
-      revs = revs.filter(r => r.condo_id === condoId && r.is_approved);
-    } else if (lower.includes('where is_approved = 1') || lower.includes('where r.is_approved = 1')) {
+      revs = revs.filter(r => r.condo_id === condoId);
+      if (lower.includes('is_approved = 1') || lower.includes('is_approved = true')) {
+        revs = revs.filter(r => r.is_approved);
+      }
+    }
+    // 4. Filter by user_id: WHERE user_id = ?
+    else if (lower.includes('user_id = ?') || lower.includes('r.user_id = ?')) {
+      const userId = Number(params[0]);
+      revs = revs.filter(r => r.user_id === userId);
+    }
+    // 5. Approved reviews only
+    else if (lower.includes('where is_approved = 1') || lower.includes('where r.is_approved = 1')) {
       revs = revs.filter(r => r.is_approved);
     }
+
+    if (lower.startsWith('select id from')) {
+      return revs.map(r => ({ id: r.id })) as unknown as T;
+    }
+    if (lower.startsWith('select id, condo_id, user_id from')) {
+      return revs.map(r => ({ id: r.id, condo_id: r.condo_id, user_id: r.user_id })) as unknown as T;
+    }
+    if (lower.startsWith('select condo_id from')) {
+      return revs.map(r => ({ condo_id: r.condo_id })) as unknown as T;
+    }
+
     const withDetails = revs.map(r => {
       const user = store.users.find(u => u.id === r.user_id);
       const condo = store.condos.find(c => c.id === r.condo_id);
@@ -1208,6 +1245,16 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
     const [condo_id, user_id, rating, title, content, pros, cons] = params as [
       number, number, number, string, string, string, string
     ];
+    // Rule: 1 review per user per condo
+    const duplicate = store.reviews.find(
+      r => r.condo_id === Number(condo_id) && r.user_id === Number(user_id)
+    );
+    if (duplicate) {
+      const err = new Error(`Duplicate entry '${user_id}-${condo_id}' for key 'uq_user_condo_review'`);
+      (err as unknown as { code: string }).code = 'ER_DUP_ENTRY';
+      throw err;
+    }
+
     const newId = store.reviews.length > 0 ? Math.max(...store.reviews.map(r => r.id)) + 1 : 1;
     store.reviews.push({
       id: newId,
@@ -1231,6 +1278,40 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
     }
     persistStore(store);
     return { insertId: newId, affectedRows: 1 } as unknown as T;
+  }
+
+  // 14.1 UPDATE reviews
+  if (lower.startsWith('update reviews')) {
+    const rating = Number(params[0]);
+    const title = String(params[1] || '');
+    const content = String(params[2] || '');
+    const pros = String(params[3] || '');
+    const cons = String(params[4] || '');
+    const reviewId = Number(params[5]);
+    const userId = params.length >= 7 ? Number(params[6]) : null;
+
+    const target = store.reviews.find(
+      r => r.id === reviewId && (userId === null || r.user_id === userId)
+    );
+    if (target) {
+      target.rating = rating;
+      target.title = title;
+      target.content = content;
+      target.pros = pros;
+      target.cons = cons;
+      target.updated_at = new Date().toISOString();
+
+      // Recalculate condo rating and review_count
+      const cReviews = store.reviews.filter(r => r.condo_id === target.condo_id && r.is_approved);
+      const targetCondo = store.condos.find(c => c.id === target.condo_id);
+      if (targetCondo) {
+        targetCondo.review_count = cReviews.length;
+        targetCondo.rating = Number((cReviews.reduce((sum, r) => sum + r.rating, 0) / cReviews.length).toFixed(1));
+      }
+      persistStore(store);
+      return { affectedRows: 1 } as unknown as T;
+    }
+    return { affectedRows: 0 } as unknown as T;
   }
 
   // 15. DELETE FROM reviews

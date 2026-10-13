@@ -7,6 +7,8 @@ import { LogIn } from 'lucide-react';
 
 interface Review {
   id: number;
+  condo_id?: number;
+  user_id?: number;
   rating: number;
   title: string;
   content: string;
@@ -14,36 +16,71 @@ interface Review {
   cons: string;
   user_name: string;
   created_at: string;
+  updated_at?: string;
 }
 
-function ReviewCard({ review }: { review: Review }) {
+function ReviewCard({
+  review,
+  isOwnReview = false,
+  onEdit,
+}: {
+  review: Review;
+  isOwnReview?: boolean;
+  onEdit?: () => void;
+}) {
   const stars = '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating);
   const date = new Date(review.created_at).toLocaleDateString('th-TH', {
-    year: 'numeric', month: 'short', day: 'numeric'
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
   });
 
   return (
-    <div style={{
-      backgroundColor: 'var(--bg-surface)',
-      border: '1px solid var(--border-line)',
-      borderRadius: 'var(--radius-md)',
-      padding: '1.5rem',
-      marginBottom: '1rem',
-    }}>
+    <div
+      style={{
+        backgroundColor: 'var(--bg-surface)',
+        border: isOwnReview ? '1.5px solid var(--accent-teal, #245842)' : '1px solid var(--border-line)',
+        borderRadius: 'var(--radius-md)',
+        padding: '1.5rem',
+        marginBottom: '1rem',
+      }}
+    >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <div style={{
-            width: 36, height: 36, borderRadius: 'var(--radius-xs)',
-            backgroundColor: 'var(--bg-surface-muted)',
-            border: '1px solid var(--border-line)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '0.85rem', fontWeight: 600, color: 'var(--ink-primary)', flexShrink: 0
-          }}>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 'var(--radius-xs)',
+              backgroundColor: 'var(--bg-surface-muted)',
+              border: '1px solid var(--border-line)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              color: 'var(--ink-primary)',
+              flexShrink: 0,
+            }}
+          >
             {review.user_name?.charAt(0)?.toUpperCase() || 'U'}
           </div>
           <div>
-            <div style={{ fontWeight: 600, fontSize: '0.92rem', color: 'var(--ink-primary)' }}>
-              {review.user_name || 'ผู้พักอาศัย'}
+            <div style={{ fontWeight: 600, fontSize: '0.92rem', color: 'var(--ink-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span>{review.user_name || 'ผู้พักอาศัย'}</span>
+              {isOwnReview && (
+                <span
+                  className="badge"
+                  style={{
+                    backgroundColor: 'var(--accent-teal, #245842)',
+                    color: '#fff',
+                    fontSize: '0.72rem',
+                    padding: '0.15rem 0.5rem',
+                  }}
+                >
+                  รีวิวของคุณ
+                </span>
+              )}
             </div>
             <div style={{ fontSize: '0.78rem', color: 'var(--ink-muted)' }}>
               รีวิวเมื่อ {date}
@@ -51,11 +88,23 @@ function ReviewCard({ review }: { review: Review }) {
           </div>
         </div>
 
-        <div style={{ textAlign: 'right' }}>
-          <span className="rating-stars" style={{ fontSize: '1rem' }}>{stars}</span>
-          <span style={{ fontSize: '0.78rem', color: 'var(--ink-muted)', marginLeft: 4 }}>
-            ({review.rating}/5)
-          </span>
+        <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div>
+            <span className="rating-stars" style={{ fontSize: '1rem' }}>{stars}</span>
+            <span style={{ fontSize: '0.78rem', color: 'var(--ink-muted)', marginLeft: 4 }}>
+              ({review.rating}/5)
+            </span>
+          </div>
+          {isOwnReview && onEdit && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={onEdit}
+              style={{ fontSize: '0.75rem', padding: '0.2rem 0.55rem' }}
+            >
+              ✏️ แก้ไข
+            </button>
+          )}
         </div>
       </div>
 
@@ -111,6 +160,9 @@ export default function ReviewSection({
   );
   const [currentUser, setCurrentUser] = useState<{ id: number; name: string } | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingReviewId, setEditingReviewId] = useState<number | null>(null);
+
   const [rating, setRating] = useState(5);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -138,6 +190,29 @@ export default function ReviewSection({
       .catch(() => {});
   }, []);
 
+  // Find if current logged-in user already wrote a review for this condo
+  const myReview = currentUser ? reviews.find(r => r.user_id === currentUser.id) : null;
+
+  const handleStartEdit = (rev: Review) => {
+    setIsEditing(true);
+    setShowForm(false);
+    setEditingReviewId(rev.id);
+    setRating(rev.rating);
+    setTitle(rev.title || '');
+    setContent(rev.content || '');
+    setPros(rev.pros || '');
+    setCons(rev.cons || '');
+    setError('');
+    setMsg('');
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setShowForm(false);
+    setEditingReviewId(null);
+    setError('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -161,34 +236,66 @@ export default function ReviewSection({
     setSubmitting(true);
 
     try {
-      const res = await fetch('/api/reviews', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ condo_id: condoId, rating, title, content, pros, cons }),
-      });
+      if (isEditing && editingReviewId) {
+        // Edit existing review
+        const res = await fetch('/api/reviews', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editingReviewId,
+            rating,
+            title,
+            content,
+            pros,
+            cons,
+          }),
+        });
 
-      const data = await res.json();
-      if (!res.ok) {
-        if (res.status === 401) {
-          setError('กรุณาเข้าสู่ระบบก่อนเขียนรีวิว');
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.error || 'เกิดข้อผิดพลาดในการแก้ไขรีวิว');
         } else {
-          setError(data.error || 'เกิดข้อผิดพลาดในการบันทึกรีวิว');
+          setMsg(data.message || 'แก้ไขรีวิวของคุณเรียบร้อยแล้ว');
+          setIsEditing(false);
+          setEditingReviewId(null);
+
+          if (data.review) {
+            setReviews(prev =>
+              prev.map(r => (r.id === data.review.id ? { ...r, ...data.review } : r))
+            );
+          }
+          router.refresh();
         }
       } else {
-        setMsg(data.message || 'บันทึกรีวิวของคุณเรียบร้อยแล้ว ขอบคุณสำหรับข้อมูล');
-        setShowForm(false);
-        setTitle('');
-        setContent('');
-        setPros('');
-        setCons('');
+        // Create new review
+        const res = await fetch('/api/reviews', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ condo_id: condoId, rating, title, content, pros, cons }),
+        });
 
-        // Optimistically prepend the new review immediately so user sees it with zero latency
-        if (data.review) {
-          setReviews(prev => [data.review, ...prev.filter(r => r.id !== data.review.id)]);
+        const data = await res.json();
+        if (!res.ok) {
+          if (res.status === 401) {
+            setError('กรุณาเข้าสู่ระบบก่อนเขียนรีวิว');
+          } else {
+            setError(data.error || 'เกิดข้อผิดพลาดในการบันทึกรีวิว');
+          }
+        } else {
+          setMsg(data.message || 'บันทึกรีวิวของคุณเรียบร้อยแล้ว ขอบคุณสำหรับข้อมูล');
+          setShowForm(false);
+          setTitle('');
+          setContent('');
+          setPros('');
+          setCons('');
+
+          // Optimistically prepend the new review immediately
+          if (data.review) {
+            setReviews(prev => [data.review, ...prev.filter(r => r.id !== data.review.id)]);
+          }
+
+          router.refresh();
         }
-
-        // Trigger router refresh to update server-side rating and review count
-        router.refresh();
       }
     } catch {
       setError('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง');
@@ -208,15 +315,33 @@ export default function ReviewSection({
             ความคิดเห็นตรงไปตรงมาเพื่อช่วยประเมินการอยู่อาศัยจริง
           </p>
         </div>
-        <button
-          className="btn btn-secondary btn-sm"
-          onClick={() => {
-            setShowForm(!showForm);
-            setError('');
-          }}
-        >
-          {showForm ? 'ปิดฟอร์มรีวิว' : '+ เขียนรีวิวโครงการนี้'}
-        </button>
+
+        {myReview ? (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => {
+              if (isEditing) {
+                handleCancel();
+              } else {
+                handleStartEdit(myReview);
+              }
+            }}
+          >
+            {isEditing ? 'ปิดฟอร์มแก้ไข' : '✏️ แก้ไขรีวิวของคุณ'}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => {
+              setShowForm(!showForm);
+              setError('');
+            }}
+          >
+            {showForm ? 'ปิดฟอร์มรีวิว' : '+ เขียนรีวิวโครงการนี้'}
+          </button>
+        )}
       </div>
 
       {/* Global Success Notification */}
@@ -230,16 +355,95 @@ export default function ReviewSection({
         </div>
       )}
 
-      {showForm && (
-        <div style={{
-          backgroundColor: 'var(--bg-surface)',
-          border: '1px solid var(--border-strong)',
-          borderRadius: 'var(--radius-md)',
-          padding: '1.75rem',
-          marginBottom: '2rem',
-        }}>
+      {/* If user already reviewed and is not editing: Display user's existing review with Edit button */}
+      {myReview && !isEditing && (
+        <div
+          style={{
+            backgroundColor: 'var(--bg-surface)',
+            border: '1.5px solid var(--accent-teal, #245842)',
+            borderRadius: 'var(--radius-md)',
+            padding: '1.25rem 1.5rem',
+            marginBottom: '1.75rem',
+          }}
+        >
+          <div className="flex items-center justify-between mb-2" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div className="flex items-center gap-2">
+              <span
+                className="badge"
+                style={{
+                  backgroundColor: 'var(--accent-teal, #245842)',
+                  color: '#fff',
+                  fontSize: '0.8rem',
+                }}
+              >
+                ✓ คุณเคยเขียนรีวิวโครงการนี้แล้ว (จำกัด 1 รีวิวต่อ 1 โครงการ)
+              </span>
+              <span className="rating-stars" style={{ fontSize: '0.95rem' }}>
+                {'★'.repeat(myReview.rating) + '☆'.repeat(5 - myReview.rating)}
+              </span>
+              <span style={{ fontSize: '0.8rem', color: 'var(--ink-muted)' }}>
+                ({myReview.rating}/5)
+              </span>
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => handleStartEdit(myReview)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+            >
+              ✏️ แก้ไขรีวิว
+            </button>
+          </div>
+
+          {myReview.title && (
+            <h4 style={{ fontSize: '1.02rem', fontWeight: 600, margin: '0.35rem 0 0.5rem', color: 'var(--ink-primary)' }}>
+              {myReview.title}
+            </h4>
+          )}
+
+          {myReview.content && (
+            <p style={{ fontSize: '0.9rem', color: 'var(--ink-secondary)', margin: 0, lineHeight: 1.6 }}>
+              {myReview.content}
+            </p>
+          )}
+
+          {(myReview.pros || myReview.cons) && (
+            <div
+              className="flex flex-col gap-1 pt-2 mt-2"
+              style={{ borderTop: '1px solid var(--border-line)', fontSize: '0.82rem' }}
+            >
+              {myReview.pros && (
+                <div>
+                  <span style={{ color: 'var(--transit-green)', fontWeight: 600, marginRight: 6 }}>จุดเด่น:</span>
+                  <span style={{ color: 'var(--ink-secondary)' }}>{myReview.pros}</span>
+                </div>
+              )}
+              {myReview.cons && (
+                <div>
+                  <span style={{ color: 'var(--clay-alert)', fontWeight: 600, marginRight: 6 }}>ข้อสังเกต:</span>
+                  <span style={{ color: 'var(--ink-secondary)' }}>{myReview.cons}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Form Section: Rendered when creating a new review (when no existing review) OR editing */}
+      {(showForm || isEditing) && (
+        <div
+          style={{
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-strong)',
+            borderRadius: 'var(--radius-md)',
+            padding: '1.75rem',
+            marginBottom: '2rem',
+          }}
+        >
           <h4 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: 'var(--ink-primary)' }}>
-            แบ่งปันประสบการณ์การอยู่อาศัย {condoName ? `(${condoName})` : ''}
+            {isEditing
+              ? `✏️ แก้ไขรีวิวของคุณ ${condoName ? `(${condoName})` : ''}`
+              : `แบ่งปันประสบการณ์การอยู่อาศัย ${condoName ? `(${condoName})` : ''}`}
           </h4>
 
           {/* Form Error Banner */}
@@ -254,9 +458,16 @@ export default function ReviewSection({
           )}
 
           {!currentUser && (
-            <div className="alert alert-info mb-4" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <div
+              className="alert alert-info mb-4"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}
+            >
               <span>คุณยังไม่ได้เข้าสู่ระบบ กรุณาเข้าสู่ระบบเพื่อเขียนรีวิว</span>
-              <Link href="/auth/login" className="btn btn-sm btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Link
+                href="/auth/login"
+                className="btn btn-sm btn-primary"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+              >
                 <LogIn size={14} /> เข้าสู่ระบบ
               </Link>
             </div>
@@ -273,7 +484,9 @@ export default function ReviewSection({
                     onClick={() => setRating(star)}
                     disabled={submitting}
                     style={{
-                      background: 'none', border: 'none', cursor: submitting ? 'not-allowed' : 'pointer',
+                      background: 'none',
+                      border: 'none',
+                      cursor: submitting ? 'not-allowed' : 'pointer',
                       fontSize: '1.6rem',
                       color: star <= rating ? 'var(--sand-gold)' : 'var(--border-strong)',
                       lineHeight: 1,
@@ -343,15 +556,18 @@ export default function ReviewSection({
                 disabled={submitting}
                 aria-busy={submitting}
               >
-                {submitting ? 'กำลังบันทึกรีวิว...' : 'เผยแพร่รีวิว'}
+                {submitting
+                  ? isEditing
+                    ? 'กำลังบันทึกการแก้ไข...'
+                    : 'กำลังบันทึกรีวิว...'
+                  : isEditing
+                  ? 'บันทึกการแก้ไขรีวิว'
+                  : 'เผยแพร่รีวิว'}
               </button>
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => {
-                  setShowForm(false);
-                  setError('');
-                }}
+                onClick={handleCancel}
                 disabled={submitting}
               >
                 ยกเลิก
@@ -361,22 +577,32 @@ export default function ReviewSection({
         </div>
       )}
 
+      {/* Reviews list */}
       {reviews.length === 0 ? (
-        <div style={{
-          backgroundColor: 'var(--bg-surface)',
-          border: '1px solid var(--border-line)',
-          borderRadius: 'var(--radius-md)',
-          padding: '3rem 1.5rem',
-          textAlign: 'center',
-          color: 'var(--ink-secondary)',
-        }}>
+        <div
+          style={{
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-line)',
+            borderRadius: 'var(--radius-md)',
+            padding: '3rem 1.5rem',
+            textAlign: 'center',
+            color: 'var(--ink-secondary)',
+          }}
+        >
           <p style={{ margin: 0, fontSize: '0.95rem' }}>ยังไม่มีรีวิวสำหรับโครงการนี้</p>
           <p style={{ fontSize: '0.82rem', color: 'var(--ink-muted)', marginTop: '0.35rem' }}>
             หากคุณเคยพักอาศัยหรือเข้าชมโครงการนี้ สามารถเขียนรีวิวคนแรกได้เลย
           </p>
         </div>
       ) : (
-        reviews.map(review => <ReviewCard key={review.id} review={review} />)
+        reviews.map(review => (
+          <ReviewCard
+            key={review.id}
+            review={review}
+            isOwnReview={currentUser ? review.user_id === currentUser.id : false}
+            onEdit={() => handleStartEdit(review)}
+          />
+        ))
       )}
     </div>
   );
