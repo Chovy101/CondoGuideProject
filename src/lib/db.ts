@@ -913,6 +913,17 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
   if (lower.startsWith('select') && lower.includes('from condos')) {
     let list = store.condos.filter(c => c.is_active);
 
+    // Specific ID
+    if (lower.includes('c.id = ?') || lower.includes('where id = ?') || lower.includes('where c.id = ?')) {
+      const targetId = Number(params[0]);
+      const item = store.condos.find(c => c.id === targetId);
+      if (!item) return [] as unknown as T;
+      if (lower.startsWith('select id, slug from') || lower.startsWith('select slug from')) {
+        return [{ id: item.id, slug: item.slug }] as unknown as T;
+      }
+      return [item] as unknown as T;
+    }
+
     // Specific slug
     if (lower.includes('c.slug = ?') || lower.includes('where slug = ?')) {
       const slug = String(params[0] || '');

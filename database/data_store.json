@@ -26,6 +26,15 @@
       "role": "user",
       "created_at": "2026-10-12T17:19:35.670Z",
       "updated_at": "2026-10-12T17:19:35.670Z"
+    },
+    {
+      "id": 4,
+      "name": "Thavin",
+      "email": "thavin@example.com",
+      "password": "$2b$10$qU4JHOLwqEdkRMQURoHz7Of4fJ6DMma3NC0tqB/zFt4VyHc07vhq2",
+      "role": "user",
+      "created_at": "2026-10-13T20:56:45.514Z",
+      "updated_at": "2026-10-13T20:56:45.514Z"
     }
   ],
   "categories": [
@@ -120,10 +129,10 @@
       "imageCredit": "",
       "imageIsIllustrative": false,
       "rating": 5,
-      "review_count": 1,
+      "review_count": 2,
       "is_featured": true,
       "is_active": true,
-      "view_count": 1540,
+      "view_count": 1548,
       "created_by": 1,
       "created_at": "2024-01-10",
       "updated_at": "2024-01-10"
@@ -453,6 +462,19 @@
       "is_approved": true,
       "created_at": "2024-03-20 17:00:00",
       "updated_at": "2024-03-20 17:00:00"
+    },
+    {
+      "id": 6,
+      "condo_id": 1,
+      "user_id": 4,
+      "rating": 5,
+      "title": "Amazing atmosphere and great location (updated)",
+      "content": "Very convenient transportation, close to BTS station, beautiful city view, clean common areas and excellent staff service.",
+      "pros": "Good location, good management",
+      "cons": "Limited parking space",
+      "is_approved": true,
+      "created_at": "2026-10-13T20:58:27.316Z",
+      "updated_at": "2026-10-13T21:23:44.955Z"
     }
   ],
   "dailyViews": [
@@ -467,6 +489,12 @@
       "condo_id": 3,
       "view_date": "2026-10-12",
       "view_count": 1
+    },
+    {
+      "id": 3,
+      "condo_id": 1,
+      "view_date": "2026-10-13",
+      "view_count": 8
     }
   ]
 }

@@ -180,6 +180,18 @@ export default function ReviewSection({
     }
   }, [initialReviews]);
 
+  // Fresh fetch on client mount to bypass any static page cache
+  useEffect(() => {
+    fetch(`/api/reviews?condo_id=${condoId}`, { cache: 'no-store' })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (data?.reviews && Array.isArray(data.reviews)) {
+          setReviews(data.reviews);
+        }
+      })
+      .catch(() => {});
+  }, [condoId]);
+
   // Check login state
   useEffect(() => {
     fetch('/api/auth/session')
@@ -192,6 +204,13 @@ export default function ReviewSection({
 
   // Find if current logged-in user already wrote a review for this condo
   const myReview = currentUser ? reviews.find(r => r.user_id === currentUser.id) : null;
+
+  // Open form if navigated via #reviews and user has not reviewed yet
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash === '#reviews' && !myReview) {
+      setShowForm(true);
+    }
+  }, [myReview]);
 
   const handleStartEdit = (rev: Review) => {
     setIsEditing(true);
@@ -305,7 +324,7 @@ export default function ReviewSection({
   };
 
   return (
-    <div>
+    <div id="reviews">
       <div className="flex items-center justify-between mb-4" style={{ flexWrap: 'wrap', gap: '0.75rem' }}>
         <div>
           <h3 style={{ fontSize: '1.25rem', margin: 0 }}>

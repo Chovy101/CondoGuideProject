@@ -421,12 +421,13 @@ async function CondoDetailContent({ params }: { params: Promise<{ slug: string }
                 )}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', fontSize: '0.9rem' }}>
-                <Link
-                  href={`/reviews/write?condo=${condo.id}&name=${encodeURIComponent(condo.name)}`}
+                <a
+                  href="#reviews"
                   className="btn btn-primary w-full"
+                  style={{ textAlign: 'center' }}
                 >
                   เขียนรีวิวโครงการนี้
-                </Link>
+                </a>
                 <Link href="/condos" className="btn btn-secondary w-full">
                   กลับสู่รายการทั้งหมด
                 </Link>

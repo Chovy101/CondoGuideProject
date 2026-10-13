@@ -1,6 +1,7 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 interface Condo {
@@ -10,10 +11,23 @@ interface Condo {
   district: string;
 }
 
-export default function WriteReviewPage() {
+interface ExistingReview {
+  id: number;
+  user_id: number;
+  rating: number;
+  title: string;
+  content: string;
+  pros: string;
+  cons: string;
+}
+
+function WriteReviewContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const preselectedCondoId = searchParams.get('condo') || '';
+
   const [condos, setCondos] = useState<Condo[]>([]);
-  const [selectedCondoId, setSelectedCondoId] = useState('');
+  const [selectedCondoId, setSelectedCondoId] = useState(preselectedCondoId);
   const [rating, setRating] = useState(5);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -24,6 +38,8 @@ export default function WriteReviewPage() {
   const [success, setSuccess] = useState('');
 
   const [currentUser, setCurrentUser] = useState<{ id: number; name: string } | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingReviewId, setEditingReviewId] = useState<number | null>(null);
 
   useEffect(() => {
     // Fetch current user session
@@ -38,13 +54,51 @@ export default function WriteReviewPage() {
     fetch('/api/condos?limit=50')
       .then(res => res.json())
       .then(data => {
-        if (data.condos) setCondos(data.condos);
-        if (data.condos && data.condos.length > 0) {
-          setSelectedCondoId(String(data.condos[0].id));
+        if (data.condos) {
+          setCondos(data.condos);
+          if (!preselectedCondoId && data.condos.length > 0) {
+            setSelectedCondoId(String(data.condos[0].id));
+          } else if (preselectedCondoId) {
+            setSelectedCondoId(preselectedCondoId);
+          }
         }
       })
       .catch(() => {});
-  }, []);
+  }, [preselectedCondoId]);
+
+  // When selectedCondoId or currentUser changes, check if user already reviewed this condo
+  useEffect(() => {
+    if (!selectedCondoId || !currentUser) {
+      setIsEditing(false);
+      setEditingReviewId(null);
+      return;
+    }
+
+    fetch(`/api/reviews?condo_id=${selectedCondoId}`, { cache: 'no-store' })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        const reviews: ExistingReview[] = data?.reviews || [];
+        const existing = reviews.find(r => r.user_id === currentUser.id);
+        if (existing) {
+          setIsEditing(true);
+          setEditingReviewId(existing.id);
+          setRating(existing.rating);
+          setTitle(existing.title || '');
+          setContent(existing.content || '');
+          setPros(existing.pros || '');
+          setCons(existing.cons || '');
+        } else {
+          setIsEditing(false);
+          setEditingReviewId(null);
+          setRating(5);
+          setTitle('');
+          setContent('');
+          setPros('');
+          setCons('');
+        }
+      })
+      .catch(() => {});
+  }, [selectedCondoId, currentUser]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,37 +123,70 @@ export default function WriteReviewPage() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/reviews', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          condo_id: Number(selectedCondoId),
-          rating,
-          title,
-          content,
-          pros,
-          cons,
-        }),
-      });
+      if (isEditing && editingReviewId) {
+        // Edit existing review
+        const res = await fetch('/api/reviews', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editingReviewId,
+            rating,
+            title,
+            content,
+            pros,
+            cons,
+          }),
+        });
 
-      const data = await res.json();
-      if (!res.ok) {
-        if (res.status === 401) {
-          setError('กรุณาเข้าสู่ระบบก่อนเขียนรีวิว');
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.error || 'เกิดข้อผิดพลาดในการแก้ไขรีวิว');
         } else {
-          setError(data.error || 'เกิดข้อผิดพลาดในการบันทึกรีวิว');
+          setSuccess('แก้ไขรีวิวของคุณเรียบร้อยแล้ว! กำลังนำคุณไปยังหน้าโครงการ...');
+          const targetCondo = condos.find(c => String(c.id) === selectedCondoId);
+          setTimeout(() => {
+            if (targetCondo?.slug) {
+              router.push(`/condos/${targetCondo.slug}#reviews`);
+            } else {
+              router.push('/condos');
+            }
+            router.refresh();
+          }, 1000);
         }
       } else {
-        setSuccess('ขอบคุณสำหรับรีวิว! ความคิดเห็นของคุณถูกบันทึกเรียบร้อย กำลังนำคุณไปยังหน้าโครงการ...');
-        const targetCondo = condos.find(c => String(c.id) === selectedCondoId);
-        setTimeout(() => {
-          if (targetCondo?.slug) {
-            router.push(`/condos/${targetCondo.slug}`);
+        // Create new review
+        const res = await fetch('/api/reviews', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            condo_id: Number(selectedCondoId),
+            rating,
+            title,
+            content,
+            pros,
+            cons,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          if (res.status === 401) {
+            setError('กรุณาเข้าสู่ระบบก่อนเขียนรีวิว');
           } else {
-            router.push('/condos');
+            setError(data.error || 'เกิดข้อผิดพลาดในการบันทึกรีวิว');
           }
-          router.refresh();
-        }, 1200);
+        } else {
+          setSuccess('ขอบคุณสำหรับรีวิว! ความคิดเห็นของคุณถูกบันทึกเรียบร้อย กำลังนำคุณไปยังหน้าโครงการ...');
+          const targetCondo = condos.find(c => String(c.id) === selectedCondoId);
+          setTimeout(() => {
+            if (targetCondo?.slug) {
+              router.push(`/condos/${targetCondo.slug}#reviews`);
+            } else {
+              router.push('/condos');
+            }
+            router.refresh();
+          }, 1000);
+        }
       }
     } catch {
       setError('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง');
@@ -115,9 +202,26 @@ export default function WriteReviewPage() {
           <Link href="/condos" style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
             ← กลับไปดูคอนโด
           </Link>
-          <h1 className="section-title mt-2">✍️ เขียนรีวิวคอนโด</h1>
-          <p className="section-subtitle">แบ่งปันประสบการณ์การอยู่อาศัยของคุณ เพื่อช่วยให้ผู้อื่นตัดสินใจได้ดียิ่งขึ้น</p>
+          <h1 className="section-title mt-2">
+            {isEditing ? '✏️ แก้ไขรีวิวคอนโด' : '✍️ เขียนรีวิวคอนโด'}
+          </h1>
+          <p className="section-subtitle">
+            {isEditing
+              ? 'คุณเคยเขียนรีวิวโครงการนี้แล้ว สามารถปรับปรุงความคิดเห็นของคุณได้ที่นี่'
+              : 'แบ่งปันประสบการณ์การอยู่อาศัยของคุณ เพื่อช่วยให้ผู้อื่นตัดสินใจได้ดียิ่งขึ้น'}
+          </p>
         </div>
+
+        {isEditing && (
+          <div
+            className="alert alert-info mb-4"
+            role="status"
+            aria-live="polite"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}
+          >
+            <span>ℹ️ คุณมีรีวิวสำหรับโครงการนี้อยู่แล้ว ระบบเปลี่ยนเข้าสู่โหมด <strong>แก้ไขรีวิว</strong> อัตโนมัติ</span>
+          </div>
+        )}
 
         {error && (
           <div className="alert alert-danger mb-4" role="alert" aria-live="assertive">
@@ -172,7 +276,7 @@ export default function WriteReviewPage() {
                       background: 'none',
                       border: 'none',
                       cursor: loading ? 'not-allowed' : 'pointer',
-                      color: star <= rating ? 'var(--warning)' : '#4a4860',
+                      color: star <= rating ? 'var(--warning, #f59e0b)' : '#4a4860',
                       transition: 'transform 0.15s ease',
                       transform: star === rating ? 'scale(1.2)' : 'scale(1)',
                     }}
@@ -253,13 +357,26 @@ export default function WriteReviewPage() {
                 disabled={loading}
                 aria-busy={loading}
               >
-                {loading ? '⏳ กำลังส่งรีวิว...' : '🚀 โพสต์รีวิว'}
+                {loading
+                  ? isEditing
+                    ? '⏳ กำลังบันทึกการแก้ไข...'
+                    : '⏳ กำลังส่งรีวิว...'
+                  : isEditing
+                  ? '✏️ บันทึกการแก้ไขรีวิว'
+                  : '🚀 โพสต์รีวิว'}
               </button>
             </div>
           </form>
         </div>
       </div>
     </div>
+  );
+}
 
+export default function WriteReviewPage() {
+  return (
+    <Suspense fallback={<div className="page-wrap"><div className="container" style={{ padding: '3rem 1rem', textAlign: 'center' }}>กำลังโหลดแบบฟอร์ม...</div></div>}>
+      <WriteReviewContent />
+    </Suspense>
   );
 }
