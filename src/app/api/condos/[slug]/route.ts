@@ -1,5 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, recordCondoDailyView } from '@/lib/db';
+import { getSession } from '@/lib/auth';
+
+const ALLOWED_UPDATE_FIELDS = new Set([
+  'name',
+  'category_id',
+  'description',
+  'address',
+  'district',
+  'province',
+  'price_min',
+  'price_max',
+  'price_type',
+  'bedrooms',
+  'bathrooms',
+  'area_min',
+  'area_max',
+  'floor_total',
+  'unit_total',
+  'year_built',
+  'facilities',
+  'image_url',
+  'image_alt',
+  'image_credit',
+  'image_is_illustrative',
+  'is_featured',
+  'is_active',
+]);
 
 export async function GET(_req: NextRequest, ctx: RouteContext<'/api/condos/[slug]'>) {
   const { slug } = await ctx.params;
@@ -35,11 +62,21 @@ export async function GET(_req: NextRequest, ctx: RouteContext<'/api/condos/[slu
 }
 
 export async function PUT(request: NextRequest, ctx: RouteContext<'/api/condos/[slug]'>) {
+  const session = await getSession();
+  if (!session || session.role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized (เฉพาะผู้ดูแลระบบเท่านั้น)' }, { status: 401 });
+  }
+
   const { slug } = await ctx.params;
   try {
     const data = await request.json();
-    const fields = Object.keys(data).map(k => `${k} = ?`).join(', ');
-    const values = [...Object.values(data), slug];
+    const validEntries = Object.entries(data).filter(([key]) => ALLOWED_UPDATE_FIELDS.has(key));
+    if (validEntries.length === 0) {
+      return NextResponse.json({ error: 'ไม่มีข้อมูลที่ได้รับอนุญาตให้อัปเดต' }, { status: 400 });
+    }
+
+    const fields = validEntries.map(([k]) => `${k} = ?`).join(', ');
+    const values = [...validEntries.map(([, v]) => v), slug];
     await query(`UPDATE condos SET ${fields} WHERE slug = ?`, values);
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -49,6 +86,11 @@ export async function PUT(request: NextRequest, ctx: RouteContext<'/api/condos/[
 }
 
 export async function DELETE(_req: NextRequest, ctx: RouteContext<'/api/condos/[slug]'>) {
+  const session = await getSession();
+  if (!session || session.role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized (เฉพาะผู้ดูแลระบบเท่านั้น)' }, { status: 401 });
+  }
+
   const { slug } = await ctx.params;
   await query('UPDATE condos SET is_active = 0 WHERE slug = ?', [slug]);
   return NextResponse.json({ success: true });

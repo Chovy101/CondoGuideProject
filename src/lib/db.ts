@@ -292,29 +292,36 @@ function initStore() {
     // fallback to initial seed
   }
 
-  // Initial seed data matching database/schema.sql
-  const users: MockUser[] = [
-    {
+  // Initial seed data: Admin configured via environment variables (ห้ามใช้บัญชีทดสอบใน production)
+  const isProd = process.env.NODE_ENV === 'production';
+  const adminEmail = process.env.ADMIN_EMAIL || (isProd ? '' : 'admin@condoguide.com');
+  const adminPasswordHash = process.env.ADMIN_PASSWORD_HASH ||
+    (isProd ? '' : '$2b$10$m3ZS41rPWrtt6tr9PzjI7uH/EaIdBeVLXPYeshuo.oShLyvfdA/86');
+
+  const users: MockUser[] = [];
+  if (adminEmail && adminPasswordHash) {
+    users.push({
       id: 1,
       name: 'Admin',
-      email: 'admin@condoguide.com',
-      // bcrypt hash for 'password'
-      password: '$2b$10$m3ZS41rPWrtt6tr9PzjI7uH/EaIdBeVLXPYeshuo.oShLyvfdA/86',
+      email: adminEmail,
+      password: adminPasswordHash,
       role: 'admin',
       created_at: '2024-01-01 10:00:00',
       updated_at: '2024-01-01 10:00:00',
-    },
-    {
+    });
+  }
+  // In development only, provide a sample user if needed
+  if (!isProd && !adminEmail) {
+    users.push({
       id: 2,
-      name: 'Test User',
-      email: 'user@condoguide.com',
-      // bcrypt hash for 'password'
+      name: 'Dev User',
+      email: 'dev@condoguide.com',
       password: '$2b$10$m3ZS41rPWrtt6tr9PzjI7uH/EaIdBeVLXPYeshuo.oShLyvfdA/86',
       role: 'user',
       created_at: '2024-01-01 11:00:00',
       updated_at: '2024-01-01 11:00:00',
-    },
-  ];
+    });
+  }
 
   const categories: MockCategory[] = [
     { id: 1, name: 'Luxury', name_th: 'หรูหรา', slug: 'luxury', icon: '👑', description: 'คอนโดหรูระดับพรีเมียม ดีไซน์ระดับโลก', color: '#f59e0b', created_at: '2024-01-01' },
@@ -854,8 +861,6 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
 
   // 6. Condos query
   if (lower.startsWith('select') && lower.includes('from condos')) {
-    console.log('MOCK_CONDOS_QUERY:', lower);
-    console.log('SORT_MATCH rating asc:', lower.includes('rating asc'));
     let list = store.condos.filter(c => c.is_active);
 
     // Specific slug

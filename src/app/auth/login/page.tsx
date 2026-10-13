@@ -215,38 +215,6 @@ function LoginForm() {
               )}
             </button>
           </form>
-
-          {/* Development Test Account Notice (Strictly shown only in development) */}
-          {process.env.NODE_ENV === 'development' && (
-            <div
-              style={{
-                textAlign: 'center',
-                fontSize: '0.8rem',
-                color: 'var(--ink-muted)',
-                marginTop: '1.5rem',
-                paddingTop: '1rem',
-                borderTop: '1px dashed var(--border-line)',
-                lineHeight: 1.5,
-              }}
-            >
-              <span
-                style={{
-                  fontSize: '0.7rem',
-                  backgroundColor: 'var(--bg-surface-muted)',
-                  color: 'var(--ink-secondary)',
-                  padding: '0.15rem 0.45rem',
-                  borderRadius: 'var(--radius-xs)',
-                  fontWeight: 600,
-                  marginRight: '0.4rem',
-                  letterSpacing: '0.04em',
-                }}
-              >
-                DEV ONLY
-              </span>
-              บัญชีทดสอบ: <strong style={{ color: 'var(--ink-primary)' }}>admin@condoguide.com</strong> /{' '}
-              <strong style={{ color: 'var(--ink-primary)' }}>password</strong>
-            </div>
-          )}
         </div>
 
         {/* Link to Register */}

@@ -1,0 +1,90 @@
+%% =====================================================================
+%% CondoGuide Database & System Diagrams (Mermaid Format)
+%% สำหรับนำไปใส่ในเล่มรายงาน หรือเปิดบน https://mermaid.live เพื่อ Export เป็นภาพ
+%% =====================================================================
+
+%% ---------------------------------------------------------------------
+%% DIAGRAM 1: Entity-Relationship Diagram (ERD) - แผนภาพความสัมพันธ์ฐานข้อมูล
+%% ---------------------------------------------------------------------
+erDiagram
+    users ||--o{ condos : "สร้างโครงการ (created_by)"
+    users ||--o{ reviews : "เขียนรีวิว (user_id)"
+    categories ||--o{ condos : "จัดหมวดหมู่ (category_id)"
+    condos ||--o{ reviews : "มีรีวิว (condo_id)"
+    condos ||--o{ condo_daily_views : "บันทึกยอดวิว (condo_id)"
+
+    users {
+        int id PK "รหัสผู้ใช้ (Auto Increment)"
+        varchar_100 name "ชื่อ-นามสกุล / ชื่อแสดงผล"
+        varchar_150 email UK "อีเมลเข้าสู่ระบบ (ห้ามซ้ำ)"
+        varchar_255 password "รหัสผ่านแฮช (bcrypt salt 10)"
+        enum_role role "สิทธิ์ (admin, user)"
+        varchar_255 avatar "URL รูปภาพโปรไฟล์"
+        timestamp created_at "วันเวลาที่สร้างบัญชี"
+        timestamp updated_at "วันเวลาที่อัปเดตล่าสุด"
+    }
+
+    categories {
+        int id PK "รหัสหมวดหมู่ (Auto Increment)"
+        varchar_100 name "ชื่อภาษาอังกฤษ (เช่น Luxury, Studio)"
+        varchar_100 name_th "ชื่อภาษาไทย (เช่น หรูหรา, สตูดิโอ)"
+        varchar_100 slug UK "URL Slug (ห้ามซ้ำ)"
+        varchar_50 icon "ไอคอนประจำหมวดหมู่"
+        text description "คำอธิบายหมวดหมู่"
+        varchar_20 color "โค้ดสีประจำหมวดหมู่ (Hex Code)"
+        timestamp created_at "วันเวลาที่สร้างหมวดหมู่"
+    }
+
+    condos {
+        int id PK "รหัสโครงการ (Auto Increment)"
+        varchar_200 name "ชื่อคอนโดมิเนียม"
+        varchar_200 slug UK "URL Slug ประจำโครงการ"
+        int category_id FK "อ้างอิง categories.id"
+        text description "รายละเอียดโครงการ"
+        text address "ที่อยู่โครงการ"
+        varchar_100 district "เขต / อำเภอ"
+        varchar_100 province "จังหวัด"
+        decimal price_min "ราคาเริ่มต้น (บาท)"
+        decimal price_max "ราคาสูงสุด (บาท)"
+        enum_price price_type "ประเภทราคา (rent, sale, both)"
+        varchar_50 bedrooms "จำนวนห้องนอน"
+        varchar_50 bathrooms "จำนวนห้องน้ำ"
+        decimal area_min "ขนาดพื้นที่เริ่มต้น (ตร.ม.)"
+        decimal area_max "ขนาดพื้นที่สูงสุด (ตร.ม.)"
+        int floor_total "จำนวนชั้นทั้งหมด"
+        int unit_total "จำนวนยูนิตทั้งหมด"
+        year year_built "ปีที่สร้างแล้วเสร็จ"
+        text facilities "สิ่งอำนวยความสะดวก"
+        varchar_500 image_url "ลิงก์รูปภาพหลัก"
+        decimal rating "คะแนนเฉลี่ยโครงการ (0.00-5.00)"
+        int review_count "จำนวนรีวิวทั้งหมด"
+        boolean is_featured "สถานะโครงการแนะนำ"
+        boolean is_active "สถานะเปิดเผยข้อมูล"
+        int view_count "ยอดผู้เข้าชมรวม"
+        int created_by FK "อ้างอิง users.id"
+        timestamp created_at "วันเวลาที่บันทึก"
+        timestamp updated_at "วันเวลาที่แก้ไขล่าสุด"
+    }
+
+    reviews {
+        int id PK "รหัสรีวิว (Auto Increment)"
+        int condo_id FK "อ้างอิง condos.id"
+        int user_id FK "อ้างอิง users.id"
+        tinyint rating "คะแนนความพึงพอใจ (1 ถึง 5)"
+        varchar_200 title "หัวข้อรีวิว"
+        text content "เนื้อหารายละเอียดรีวิว"
+        text pros "จุดเด่น / ข้อดี"
+        text cons "จุดสังเกต / ข้อเสีย"
+        boolean is_approved "สถานะการอนุมัติแสดงผล"
+        timestamp created_at "วันเวลาที่เขียนรีวิว"
+        timestamp updated_at "วันเวลาที่แก้ไขรีวิว"
+    }
+
+    condo_daily_views {
+        int id PK "รหัสสถิติ (Auto Increment)"
+        int condo_id FK "อ้างอิง condos.id"
+        date view_date "วันที่เข้าชม (YYYY-MM-DD)"
+        int view_count "จำนวนครั้งที่เข้าชมประจำวัน"
+        timestamp created_at "วันเวลาที่บันทึก"
+        timestamp updated_at "วันเวลาที่อัปเดต"
+    }

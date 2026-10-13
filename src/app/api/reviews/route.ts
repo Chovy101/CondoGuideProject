@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
+
+// Sanitize string to prevent XSS (strip HTML tags, limit length)
+function sanitizeText(input: unknown, maxLength: number): string {
+  if (typeof input !== 'string') return '';
+  return input
+    .replace(/[<>]/g, '')
+    .trim()
+    .slice(0, maxLength);
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -18,14 +28,35 @@ export async function POST(request: NextRequest) {
   if (!session) {
     return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบก่อน' }, { status: 401 });
   }
-  const { condo_id, rating, title, content, pros, cons } = await request.json();
-  if (!condo_id || !rating) {
-    return NextResponse.json({ error: 'ข้อมูลไม่ครบ' }, { status: 400 });
+
+  const ip = getClientIp(request);
+  const rateLimit = checkRateLimit(`review:${session.id || ip}`, 5, 10 * 60 * 1000); // 5 reviews per 10 minutes
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { error: `คุณส่งรีวิวบ่อยเกินไป กรุณารอ ${rateLimit.resetInSeconds} วินาทีแล้วลองใหม่` },
+      {
+        status: 429,
+        headers: { 'Retry-After': String(rateLimit.resetInSeconds) },
+      }
+    );
   }
+
+  const { condo_id, rating, title, content, pros, cons } = await request.json();
+  const numericRating = Math.round(Number(rating));
+
+  if (!condo_id || !numericRating || numericRating < 1 || numericRating > 5) {
+    return NextResponse.json({ error: 'ข้อมูลไม่ครบหรือคะแนนดาวไม่ถูกต้อง (ต้องเป็น 1-5 ดาว)' }, { status: 400 });
+  }
+
+  // XSS sanitization and length limits
+  const cleanTitle = sanitizeText(title, 200);
+  const cleanContent = sanitizeText(content, 2000);
+  const cleanPros = sanitizeText(pros, 500);
+  const cleanCons = sanitizeText(cons, 500);
 
   const result = await query<{ insertId: number }>(
     'INSERT INTO reviews (condo_id, user_id, rating, title, content, pros, cons) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [condo_id, session.id, rating, title, content, pros, cons]
+    [Number(condo_id), session.id, numericRating, cleanTitle, cleanContent, cleanPros, cleanCons]
   );
 
   // Update rating on condo
@@ -34,7 +65,7 @@ export async function POST(request: NextRequest) {
      rating = (SELECT AVG(rating) FROM reviews WHERE condo_id = ? AND is_approved = 1),
      review_count = (SELECT COUNT(*) FROM reviews WHERE condo_id = ? AND is_approved = 1)
      WHERE id = ?`,
-    [condo_id, condo_id, condo_id]
+    [Number(condo_id), Number(condo_id), Number(condo_id)]
   );
 
   return NextResponse.json({ success: true, id: result.insertId }, { status: 201 });

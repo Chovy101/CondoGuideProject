@@ -290,7 +290,8 @@ export default async function HomePage() {
               <div className="footer-heading">ความรับผิดชอบและการติดต่อ</div>
               <ul className="footer-links">
                 <li>ข้อมูลอ้างอิงจากการสำรวจจริงและผู้ใช้งาน</li>
-                {contactEmail && <li>อีเมลติดต่อ: {contactEmail}</li>}
+                <li><Link href="/privacy">นโยบายความเป็นส่วนตัว</Link></li>
+                {contactEmail && !contactEmail.endsWith('.local') && <li>อีเมลติดต่อ: {contactEmail}</li>}
                 <li>ที่ตั้ง: กรุงเทพมหานคร ประเทศไทย</li>
               </ul>
             </div>

@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { getSession } from '@/lib/auth';
 
 export async function GET() {
+  const session = await getSession();
+  if (!session || session.role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized (เฉพาะผู้ดูแลระบบเท่านั้น)' }, { status: 401 });
+  }
   const [condoCount, userCount, reviewCount, categoryCount, featuredCount] = await Promise.all([
     query<Array<{ total: number }>>('SELECT COUNT(*) as total FROM condos WHERE is_active = 1'),
     query<Array<{ total: number }>>('SELECT COUNT(*) as total FROM users'),

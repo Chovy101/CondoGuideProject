@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { query } from '@/lib/db';
 import { setSession } from '@/lib/auth';
+import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
 
 interface User {
   id: number;
@@ -13,6 +14,18 @@ interface User {
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    const rateLimit = checkRateLimit(`login:${ip}`, 5, 15 * 60 * 1000); // 5 attempts per 15 minutes
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: `คุณพยายามเข้าสู่ระบบบ่อยเกินไป กรุณารอ ${rateLimit.resetInSeconds} วินาทีแล้วลองใหม่` },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rateLimit.resetInSeconds) },
+        }
+      );
+    }
+
     const { email, password } = await request.json();
 
     if (!email || !password) {

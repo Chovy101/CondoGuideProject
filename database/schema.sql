@@ -93,11 +93,6 @@ CREATE TABLE IF NOT EXISTS condo_daily_views (
   FOREIGN KEY (condo_id) REFERENCES condos(id) ON DELETE CASCADE
 );
 
--- Seed admin user (password: admin123)
-INSERT IGNORE INTO users (name, email, password, role) VALUES
-('Admin', 'admin@condoguide.com', '$2b$10$m3ZS41rPWrtt6tr9PzjI7uH/EaIdBeVLXPYeshuo.oShLyvfdA/86', 'admin'),
-('Test User', 'user@condoguide.com', '$2b$10$m3ZS41rPWrtt6tr9PzjI7uH/EaIdBeVLXPYeshuo.oShLyvfdA/86', 'user');
-
 -- Seed categories
 INSERT IGNORE INTO categories (name, name_th, slug, icon, description, color) VALUES
 ('Luxury', 'หรูหรา', 'luxury', '👑', 'คอนโดหรูระดับพรีเมียม ดีไซน์ระดับโลก', '#C8963E'),
@@ -117,11 +112,3 @@ INSERT IGNORE INTO condos (name, slug, category_id, description, address, distri
 ('Centric Ratchayothin', 'centric-ratchayothin', 4, 'คอนโดครอบครัว ใกล้ MRT รัชโยธิน พื้นที่กว้างขวาง มีสนามเด็กเล่น', '100 ถ.รัชโยธิน', 'ลาดพร้าว', 'กรุงเทพมหานคร', 20000, 60000, 'rent', '2-3', '2-3', 65.00, 150.00, 30, 320, 2020, 'Pool,Gym,Kids Club,BBQ Area,Parking', '/images/condos/centric-ratchayothin.jpg', 'ตึกคอนโด Centric Ratchayothin ลาดพร้าว', NULL, FALSE, 4.40, 98, FALSE, 1),
 ('Knightsbridge Bearing', 'knightsbridge-bearing', 5, 'คอนโด Pet Friendly ใกล้ BTS แบริ่ง มีพื้นที่สัตว์เลี้ยงและสวนสาธารณะ', '123 ถ.สุขุมวิท 107', 'บางนา', 'กรุงเทพมหานคร', 10000, 28000, 'rent', '1-2', '1-2', 30.00, 65.00, 25, 540, 2021, 'Pool,Gym,Pet Park,Pet Wash,Parking', '/images/condos/knightsbridge-bearing.jpg', 'ตึกคอนโด Knightsbridge Bearing บางนา', NULL, FALSE, 4.60, 63, TRUE, 1),
 ('Aspire Ladprao 48', 'aspire-ladprao-48', 2, 'คอนโดราคาคุ้มค่า ย่านลาดพร้าว ใกล้รถไฟฟ้าสายสีเหลือง', '48 ถ.ลาดพร้าว', 'ลาดพร้าว', 'กรุงเทพมหานคร', 7000, 18000, 'rent', '1', '1', 22.00, 45.00, 27, 960, 2019, 'Pool,Gym,Parking', '/images/condos/aspire-ladprao-48.jpg', 'ตึกคอนโด Aspire Ladprao 48 ลาดพร้าว', NULL, FALSE, 4.10, 201, FALSE, 1);
-
--- Seed reviews
-INSERT IGNORE INTO reviews (condo_id, user_id, rating, title, content, pros, cons) VALUES
-(1, 2, 5, 'ห้องพักสวยมาก', 'อยู่ที่นี่มา 2 ปีแล้ว ชอบมากเลยค่ะ วิวสวย สิ่งอำนวยความสะดวกครบครัน', 'วิวสวย, ทำเลดี, บริการดีเยี่ยม', 'ค่าเช่าค่อนข้างสูง'),
-(1, 2, 5, 'คุ้มค่ามากสำหรับราคา', 'ถ้าเทียบกับคอนโดอื่นในราคาใกล้เคียง ที่นี่ดีกว่าชัดเจน', 'ทีมงานใจดี, สระว่ายน้ำสวย', 'Parking บางครั้งเต็ม'),
-(2, 2, 4, 'ราคาดี ทำเลดี', 'สำหรับราคาถือว่าดีมาก ห้องสะอาด ทำเลใกล้ห้าง', 'ราคาประหยัด, ใกล้ห้างสรรพสินค้า', 'ห้องค่อนข้างเล็ก'),
-(3, 2, 5, 'เดินไป BTS ได้เลย', 'สะดวกมากไม่ต้องนั่งรถ ประหยัดค่าเดินทาง', 'ใกล้ BTS, ห้องสวย', 'ราคาเพิ่มขึ้นทุกปี'),
-(5, 2, 5, 'Luxury จริงๆ', 'บริการดีมาก เหมือนอยู่โรงแรม 5 ดาว คุ้มค่ามากสำหรับผู้ที่ต้องการความหรูหรา', 'บริการเยี่ยม, วิวแม่น้ำ, สิ่งอำนวยความสะดวกครบ', 'ราคาแพงมาก');

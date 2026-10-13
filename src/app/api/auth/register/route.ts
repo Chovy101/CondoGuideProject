@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { query } from '@/lib/db';
 import { setSession } from '@/lib/auth';
+import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
 
 interface UserRow {
   id: number;
@@ -12,14 +13,34 @@ interface UserRow {
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    const rateLimit = checkRateLimit(`register:${ip}`, 3, 60 * 60 * 1000); // 3 registrations per hour
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: `คุณสร้างบัญชีบ่อยเกินไป กรุณารอ ${rateLimit.resetInSeconds} วินาทีแล้วลองใหม่` },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rateLimit.resetInSeconds) },
+        }
+      );
+    }
+
     const { name, email, password } = await request.json();
 
     if (!name || !email || !password) {
       return NextResponse.json({ error: 'กรุณากรอกข้อมูลให้ครบ' }, { status: 400 });
     }
 
+    // Sanitize name (strip HTML tags, limit length)
+    const sanitizedName = String(name).replace(/[<>]/g, '').trim().slice(0, 100);
+    const sanitizedEmail = String(email).trim().toLowerCase();
+
+    if (!sanitizedName) {
+      return NextResponse.json({ error: 'ชื่อผู้ใช้ไม่ถูกต้อง' }, { status: 400 });
+    }
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(sanitizedEmail)) {
       return NextResponse.json({ error: 'รูปแบบอีเมลไม่ถูกต้อง' }, { status: 400 });
     }
 
@@ -27,7 +48,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร' }, { status: 400 });
     }
 
-    const existing = await query<UserRow[]>('SELECT id FROM users WHERE email = ?', [email]);
+    const existing = await query<UserRow[]>('SELECT id FROM users WHERE email = ?', [sanitizedEmail]);
     if (existing.length > 0) {
       return NextResponse.json({ error: 'อีเมลนี้ถูกใช้งานแล้ว' }, { status: 409 });
     }
@@ -35,10 +56,10 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await query<{ insertId: number }>(
       'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
-      [name, email, hashedPassword, 'user']
+      [sanitizedName, sanitizedEmail, hashedPassword, 'user']
     );
 
-    const newUser = { id: result.insertId, name, email, role: 'user' as const };
+    const newUser = { id: result.insertId, name: sanitizedName, email: sanitizedEmail, role: 'user' as const };
     await setSession(newUser);
 
     return NextResponse.json({ success: true, user: newUser }, { status: 201 });
