@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { query } from '@/lib/db';
 import { connection } from 'next/server';
 import Link from 'next/link';
@@ -76,7 +77,43 @@ function formatThaiDateLabel(dateStr: string): string {
   return `${d.getDate()} ${months[d.getMonth()]}`;
 }
 
-export default async function AdminDashboard({
+function AdminDashboardSkeleton() {
+  return (
+    <div>
+      <style>{`
+        @keyframes adminPulse {
+          0%, 100% { opacity: 0.35; }
+          50% { opacity: 0.75; }
+        }
+        .admin-skel-box {
+          background-color: var(--border-line);
+          border-radius: var(--radius-sm);
+          animation: adminPulse 1.6s ease-in-out infinite;
+        }
+      `}</style>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <div className="admin-skel-box" style={{ width: 180, height: 28, marginBottom: 8 }} />
+          <div className="admin-skel-box" style={{ width: 300, height: 16 }} />
+        </div>
+      </div>
+      <div className="grid grid-4 mb-6">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="card card-body" style={{ height: 100 }}>
+            <div className="admin-skel-box" style={{ width: 90, height: 14, marginBottom: 12 }} />
+            <div className="admin-skel-box" style={{ width: 60, height: 28 }} />
+          </div>
+        ))}
+      </div>
+      <div className="card card-body" style={{ height: 320, marginBottom: '2rem' }}>
+        <div className="admin-skel-box" style={{ width: 180, height: 20, marginBottom: 16 }} />
+        <div className="admin-skel-box" style={{ width: '100%', height: 240 }} />
+      </div>
+    </div>
+  );
+}
+
+async function AdminDashboardContent({
   searchParams,
 }: {
   searchParams?: Promise<{ range?: string }>;
@@ -434,5 +471,17 @@ export default async function AdminDashboard({
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AdminDashboard({
+  searchParams,
+}: {
+  searchParams?: Promise<{ range?: string }>;
+}) {
+  return (
+    <Suspense fallback={<AdminDashboardSkeleton />}>
+      <AdminDashboardContent searchParams={searchParams} />
+    </Suspense>
   );
 }

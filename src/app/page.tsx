@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
+import { connection } from 'next/server';
 import { query } from '@/lib/db';
 import Hero3DSection from '@/components/Hero3DSection';
 import CondoCardImage from '@/components/CondoCardImage';
@@ -71,7 +73,50 @@ function renderVerifiedHighlightBadge(condo: Condo) {
   return null;
 }
 
-export default async function HomePage() {
+function HomeSkeleton() {
+  return (
+    <main>
+      <style>{`
+        @keyframes homePulse {
+          0%, 100% { opacity: 0.35; }
+          50% { opacity: 0.75; }
+        }
+        .home-skeleton-box {
+          background-color: var(--border-line);
+          border-radius: var(--radius-sm);
+          animation: homePulse 1.6s ease-in-out infinite;
+        }
+      `}</style>
+      <div style={{ height: '65vh', minHeight: 460, backgroundColor: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 'min(640px, 90%)', textAlign: 'center' }}>
+          <div className="home-skeleton-box" style={{ width: 140, height: 16, margin: '0 auto 1rem' }} />
+          <div className="home-skeleton-box" style={{ width: '85%', height: 42, margin: '0 auto 1.25rem' }} />
+          <div className="home-skeleton-box" style={{ width: '60%', height: 20, margin: '0 auto 2rem' }} />
+          <div className="home-skeleton-box" style={{ width: '100%', height: 56, borderRadius: 'var(--radius-md)' }} />
+        </div>
+      </div>
+      <section className="container" style={{ paddingTop: '4rem', paddingBottom: '3rem' }}>
+        <div className="home-skeleton-box" style={{ width: 160, height: 16, marginBottom: '0.5rem' }} />
+        <div className="home-skeleton-box" style={{ width: 280, height: 32, marginBottom: '2rem' }} />
+        <div className="grid grid-3">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="card" style={{ height: 360 }}>
+              <div className="home-skeleton-box" style={{ width: '100%', height: 200, borderRadius: 'var(--radius-sm) var(--radius-sm) 0 0' }} />
+              <div style={{ padding: '1.25rem' }}>
+                <div className="home-skeleton-box" style={{ width: 120, height: 16, marginBottom: '0.65rem' }} />
+                <div className="home-skeleton-box" style={{ width: '90%', height: 22, marginBottom: '0.75rem' }} />
+                <div className="home-skeleton-box" style={{ width: 140, height: 18 }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+async function HomeContent() {
+  await connection();
   const [featuredCondos, categories, condoCount, reviewCount] = await Promise.all([
     query<Condo[]>(
       `SELECT c.*, cat.name as category_name, cat.icon as category_icon, cat.color as category_color
@@ -303,5 +348,13 @@ export default async function HomePage() {
         </div>
       </footer>
     </main>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<HomeSkeleton />}>
+      <HomeContent />
+    </Suspense>
   );
 }

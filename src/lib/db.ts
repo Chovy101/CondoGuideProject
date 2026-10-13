@@ -7,17 +7,27 @@ let mysqlAvailable: boolean | null = null;
 
 function getPool(): mysql.Pool {
   if (!pool) {
+    const requiredEnv = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'] as const;
+    const missing = requiredEnv.filter((key) => !process.env[key]);
+    if (missing.length > 0) {
+      throw new Error(`[DB Engine] ขาด Environment Variables สำหรับเชื่อมต่อฐานข้อมูล: ${missing.join(', ')}`);
+    }
+
+    const host = process.env.DB_HOST!;
     const isCloud = Boolean(
-      process.env.DB_HOST &&
-      process.env.DB_HOST !== 'localhost' &&
-      process.env.DB_HOST !== '127.0.0.1'
+      host && host !== 'localhost' && host !== '127.0.0.1'
     );
+    const port = Number(process.env.DB_PORT) || 3306;
+    const user = process.env.DB_USER!;
+    const password = process.env.DB_PASSWORD!;
+    const database = process.env.DB_NAME!;
+
     pool = mysql.createPool({
-      host: process.env.DB_HOST || 'localhost',
-      port: Number(process.env.DB_PORT) || 3306,
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'condoguide',
+      host,
+      port,
+      user,
+      password,
+      database,
       waitForConnections: true,
       connectionLimit: isCloud ? 5 : 10,
       maxIdle: isCloud ? 2 : 5,
