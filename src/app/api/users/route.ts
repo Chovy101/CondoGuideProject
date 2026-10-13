@@ -16,7 +16,16 @@ export async function GET(request: NextRequest) {
     `SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`
   );
   const total = await query<Array<{ total: number }>>('SELECT COUNT(*) as total FROM users');
-  return NextResponse.json({ users, total: total[0]?.total || 0 });
+  return NextResponse.json(
+    { users, total: total[0]?.total || 0 },
+    {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0',
+      },
+    }
+  );
 }
 
 export async function POST(request: NextRequest) {

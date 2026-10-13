@@ -19,12 +19,24 @@ function getPool(): mysql.Pool {
       password: process.env.DB_PASSWORD || '',
       database: process.env.DB_NAME || 'condoguide',
       waitForConnections: true,
-      connectionLimit: 10,
+      connectionLimit: isCloud ? 5 : 10,
+      maxIdle: isCloud ? 2 : 5,
+      idleTimeout: 30000,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000,
       queueLimit: 0,
       charset: 'utf8mb4',
       connectTimeout: 10000,
       ssl: isCloud ? { minVersion: 'TLSv1.2', rejectUnauthorized: false } : undefined,
     });
+
+    const rawPool = (pool as unknown as { pool?: { on?: (event: string, cb: (err: unknown) => void) => void } }).pool;
+    if (rawPool && typeof rawPool.on === 'function') {
+      rawPool.on('error', (err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn('[DB Engine] Pool idle connection error (handled):', msg);
+      });
+    }
   }
   return pool;
 }
@@ -1254,17 +1266,19 @@ export async function query<T = unknown>(sql: string, params?: unknown[]): Promi
   if (mysqlAvailable !== false) {
     try {
       const p = getPool();
-      const [results] = await p.execute(
+      const res = await p.query(
         sql,
         (params || []) as (string | number | boolean | null | Date | Buffer)[]
       );
-      mysqlAvailable = true;
-      return results as T;
+      if (Array.isArray(res)) {
+        mysqlAvailable = true;
+        return res[0] as T;
+      }
+      return res as unknown as T;
     } catch (err: unknown) {
-      // Mark MySQL as unavailable and fall back to persistent file-backed store
+      const msg = err instanceof Error ? (err.message || err.name) : String(err);
+      console.warn(`[DB Engine] MySQL query failed (${msg}), using persistent file-backed database store`);
       mysqlAvailable = false;
-      const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[DB Engine] MySQL connection failed (${msg}), using persistent file-backed database store`);
     }
   }
 

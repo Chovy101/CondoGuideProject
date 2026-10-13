@@ -67,9 +67,12 @@ export default function AdminUsersPage() {
     setLoading(true);
     try {
       const res = await fetch('/api/users', { cache: 'no-store' });
+      if (!res.ok) return;
       const data = await res.json();
-      setUsers(data.users || []);
-      setTotal(data.total || 0);
+      if (Array.isArray(data.users)) {
+        setUsers(data.users);
+        setTotal(data.total ?? data.users.length);
+      }
     } catch {
       // silently handle
     } finally {
