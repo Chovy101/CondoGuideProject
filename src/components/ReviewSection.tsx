@@ -1,6 +1,9 @@
 'use client';
-import { useState } from 'react';
+
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { LogIn } from 'lucide-react';
 
 interface Review {
   id: number;
@@ -106,6 +109,7 @@ export default function ReviewSection({
   const [reviews, setReviews] = useState<Review[]>(
     initialReviews.length > 0 ? initialReviews : directReviews
   );
+  const [currentUser, setCurrentUser] = useState<{ id: number; name: string } | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [rating, setRating] = useState(5);
   const [title, setTitle] = useState('');
@@ -117,37 +121,80 @@ export default function ReviewSection({
   const [error, setError] = useState('');
   const router = useRouter();
 
+  // Keep reviews in sync if initialReviews prop updates from server
+  useEffect(() => {
+    if (initialReviews && initialReviews.length > 0) {
+      setReviews(initialReviews);
+    }
+  }, [initialReviews]);
+
+  // Check login state
+  useEffect(() => {
+    fetch('/api/auth/session')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (data?.user) setCurrentUser(data.user);
+      })
+      .catch(() => {});
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
     setError('');
+    setMsg('');
 
-    const res = await fetch('/api/reviews', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ condo_id: condoId, rating, title, content, pros, cons }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) {
-      if (res.status === 401) {
-        setError('กรุณาเข้าสู่ระบบก่อนเขียนรีวิว');
-      } else {
-        setError(data.error || 'เกิดข้อผิดพลาดในการส่งข้อมูล');
-      }
-    } else {
-      setMsg('บันทึกรีวิวของคุณเรียบร้อยแล้ว ขอบคุณสำหรับข้อมูล');
-      setShowForm(false);
-      setTitle('');
-      setContent('');
-      setPros('');
-      setCons('');
-      const rRes = await fetch(`/api/reviews?condo_id=${condoId}`);
-      const rData = await rRes.json();
-      setReviews(rData.reviews || []);
-      router.refresh();
+    if (!currentUser) {
+      setError('กรุณาเข้าสู่ระบบก่อนส่งรีวิว');
+      return;
     }
-    setSubmitting(false);
+
+    if (title.trim().length < 3) {
+      setError('หัวข้อรีวิวต้องมีความยาวอย่างน้อย 3 ตัวอักษร');
+      return;
+    }
+
+    if (content.trim().length < 10) {
+      setError('รายละเอียดความคิดเห็นต้องมีความยาวอย่างน้อย 10 ตัวอักษร');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const res = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ condo_id: condoId, rating, title, content, pros, cons }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 401) {
+          setError('กรุณาเข้าสู่ระบบก่อนเขียนรีวิว');
+        } else {
+          setError(data.error || 'เกิดข้อผิดพลาดในการบันทึกรีวิว');
+        }
+      } else {
+        setMsg(data.message || 'บันทึกรีวิวของคุณเรียบร้อยแล้ว ขอบคุณสำหรับข้อมูล');
+        setShowForm(false);
+        setTitle('');
+        setContent('');
+        setPros('');
+        setCons('');
+
+        // Optimistically prepend the new review immediately so user sees it with zero latency
+        if (data.review) {
+          setReviews(prev => [data.review, ...prev.filter(r => r.id !== data.review.id)]);
+        }
+
+        // Trigger router refresh to update server-side rating and review count
+        router.refresh();
+      }
+    } catch {
+      setError('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -163,13 +210,25 @@ export default function ReviewSection({
         </div>
         <button
           className="btn btn-secondary btn-sm"
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            setShowForm(!showForm);
+            setError('');
+          }}
         >
           {showForm ? 'ปิดฟอร์มรีวิว' : '+ เขียนรีวิวโครงการนี้'}
         </button>
       </div>
 
-      {msg && <div className="alert alert-success mb-4">✅ {msg}</div>}
+      {/* Global Success Notification */}
+      {msg && (
+        <div
+          className="alert alert-success mb-4"
+          role="status"
+          aria-live="polite"
+        >
+          ✅ {msg}
+        </div>
+      )}
 
       {showForm && (
         <div style={{
@@ -180,20 +239,41 @@ export default function ReviewSection({
           marginBottom: '2rem',
         }}>
           <h4 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: 'var(--ink-primary)' }}>
-            แบ่งปันประสบการณ์การอยู่อาศัย
+            แบ่งปันประสบการณ์การอยู่อาศัย {condoName ? `(${condoName})` : ''}
           </h4>
-          {error && <div className="alert alert-danger mb-3">{error}</div>}
+
+          {/* Form Error Banner */}
+          {error && (
+            <div
+              className="alert alert-danger mb-3"
+              role="alert"
+              aria-live="assertive"
+            >
+              ⚠️ {error}
+            </div>
+          )}
+
+          {!currentUser && (
+            <div className="alert alert-info mb-4" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+              <span>คุณยังไม่ได้เข้าสู่ระบบ กรุณาเข้าสู่ระบบเพื่อเขียนรีวิว</span>
+              <Link href="/auth/login" className="btn btn-sm btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <LogIn size={14} /> เข้าสู่ระบบ
+              </Link>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit}>
             <div className="form-group">
-              <label className="form-label">คะแนนความพึงพอใจโดยรวม</label>
+              <label className="form-label">คะแนนความพึงพอใจโดยรวม *</label>
               <div className="flex gap-2 items-center">
                 {[1, 2, 3, 4, 5].map(star => (
                   <button
                     key={star}
                     type="button"
                     onClick={() => setRating(star)}
+                    disabled={submitting}
                     style={{
-                      background: 'none', border: 'none', cursor: 'pointer',
+                      background: 'none', border: 'none', cursor: submitting ? 'not-allowed' : 'pointer',
                       fontSize: '1.6rem',
                       color: star <= rating ? 'var(--sand-gold)' : 'var(--border-strong)',
                       lineHeight: 1,
@@ -209,18 +289,19 @@ export default function ReviewSection({
             </div>
 
             <div className="form-group">
-              <label className="form-label">หัวข้อรีวิว *</label>
+              <label className="form-label">หัวข้อรีวิว * (อย่างน้อย 3 ตัวอักษร)</label>
               <input
                 className="form-control"
                 placeholder="เช่น บรรยากาศเงียบสงบ นิติบุคคลดูแลดีมาก"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 required
+                disabled={submitting}
               />
             </div>
 
             <div className="form-group">
-              <label className="form-label">รายละเอียดความคิดเห็น *</label>
+              <label className="form-label">รายละเอียดความคิดเห็น * (อย่างน้อย 10 ตัวอักษร)</label>
               <textarea
                 className="form-control"
                 rows={4}
@@ -228,6 +309,7 @@ export default function ReviewSection({
                 value={content}
                 onChange={e => setContent(e.target.value)}
                 required
+                disabled={submitting}
               />
             </div>
 
@@ -239,6 +321,7 @@ export default function ReviewSection({
                   placeholder="เช่น ใกล้ BTS, ที่จอดรถเพียงพอ"
                   value={pros}
                   onChange={e => setPros(e.target.value)}
+                  disabled={submitting}
                 />
               </div>
               <div className="form-group">
@@ -248,15 +331,29 @@ export default function ReviewSection({
                   placeholder="เช่น ค่าส่วนกลางสูง, ซอยแคบช่วงเร่งด่วน"
                   value={cons}
                   onChange={e => setCons(e.target.value)}
+                  disabled={submitting}
                 />
               </div>
             </div>
 
             <div className="flex gap-2">
-              <button type="submit" className="btn btn-primary" disabled={submitting}>
-                {submitting ? 'กำลังส่งข้อมูล...' : 'เผยแพร่รีวิว'}
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={submitting}
+                aria-busy={submitting}
+              >
+                {submitting ? 'กำลังบันทึกรีวิว...' : 'เผยแพร่รีวิว'}
               </button>
-              <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowForm(false);
+                  setError('');
+                }}
+                disabled={submitting}
+              >
                 ยกเลิก
               </button>
             </div>

@@ -1144,6 +1144,19 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
 
   // 12. UPDATE condos
   if (lower.startsWith('update condos')) {
+    if (lower.includes('rating =') && lower.includes('review_count =')) {
+      const condoId = Number(params[params.length - 1]);
+      const condo = store.condos.find(c => c.id === condoId || c.slug === String(condoId));
+      if (condo) {
+        const cReviews = store.reviews.filter(r => r.condo_id === condo.id && r.is_approved);
+        condo.review_count = cReviews.length;
+        condo.rating = cReviews.length > 0
+          ? Number((cReviews.reduce((sum, r) => sum + r.rating, 0) / cReviews.length).toFixed(1))
+          : 0;
+        persistStore(store);
+      }
+      return { affectedRows: 1 } as unknown as T;
+    }
     if (lower.includes('view_count = view_count + 1')) {
       const slug = String(params[0]);
       const condo = store.condos.find(c => c.slug === slug);
@@ -1162,8 +1175,8 @@ function runMockQuery<T>(sql: string, params: unknown[] = []): T {
       }
       return { affectedRows: 1 } as unknown as T;
     }
-    const slug = String(params[params.length - 1]);
-    const condo = store.condos.find(c => c.slug === slug);
+    const slugOrId = params[params.length - 1];
+    const condo = store.condos.find(c => c.slug === String(slugOrId) || c.id === Number(slugOrId));
     if (condo && params.length > 1) {
       const setMatch = sql.match(/SET\s+(.+?)\s+WHERE/i);
       if (setMatch) {

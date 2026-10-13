@@ -23,7 +23,17 @@ export default function WriteReviewPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const [currentUser, setCurrentUser] = useState<{ id: number; name: string } | null>(null);
+
   useEffect(() => {
+    // Fetch current user session
+    fetch('/api/auth/session')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (data?.user) setCurrentUser(data.user);
+      })
+      .catch(() => {});
+
     // Fetch condos for select dropdown
     fetch('/api/condos?limit=50')
       .then(res => res.json())
@@ -39,6 +49,23 @@ export default function WriteReviewPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
+
+    if (!currentUser) {
+      setError('กรุณาเข้าสู่ระบบก่อนเขียนรีวิว');
+      return;
+    }
+
+    if (title.trim().length < 3) {
+      setError('หัวข้อรีวิวต้องมีความยาวอย่างน้อย 3 ตัวอักษร');
+      return;
+    }
+
+    if (content.trim().length < 10) {
+      setError('รายละเอียดความประทับใจต้องมีความยาวอย่างน้อย 10 ตัวอักษร');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -57,15 +84,25 @@ export default function WriteReviewPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'เกิดข้อผิดพลาดในการบันทึกรีวิว');
+        if (res.status === 401) {
+          setError('กรุณาเข้าสู่ระบบก่อนเขียนรีวิว');
+        } else {
+          setError(data.error || 'เกิดข้อผิดพลาดในการบันทึกรีวิว');
+        }
       } else {
-        setSuccess('ขอบคุณสำหรับรีวิว! ความคิดเห็นของคุณถูกบันทึกเรียบร้อย');
+        setSuccess('ขอบคุณสำหรับรีวิว! ความคิดเห็นของคุณถูกบันทึกเรียบร้อย กำลังนำคุณไปยังหน้าโครงการ...');
+        const targetCondo = condos.find(c => String(c.id) === selectedCondoId);
         setTimeout(() => {
-          router.push('/profile');
-        }, 1500);
+          if (targetCondo?.slug) {
+            router.push(`/condos/${targetCondo.slug}`);
+          } else {
+            router.push('/condos');
+          }
+          router.refresh();
+        }, 1200);
       }
     } catch {
-      setError('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+      setError('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง');
     } finally {
       setLoading(false);
     }
@@ -82,8 +119,25 @@ export default function WriteReviewPage() {
           <p className="section-subtitle">แบ่งปันประสบการณ์การอยู่อาศัยของคุณ เพื่อช่วยให้ผู้อื่นตัดสินใจได้ดียิ่งขึ้น</p>
         </div>
 
-        {error && <div className="alert alert-danger mb-4">⚠️ {error}</div>}
-        {success && <div className="alert alert-success mb-4">🎉 {success}</div>}
+        {error && (
+          <div className="alert alert-danger mb-4" role="alert" aria-live="assertive">
+            ⚠️ {error}
+          </div>
+        )}
+        {success && (
+          <div className="alert alert-success mb-4" role="status" aria-live="polite">
+            🎉 {success}
+          </div>
+        )}
+
+        {!currentUser && (
+          <div className="alert alert-info mb-4" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+            <span>คุณยังไม่ได้เข้าสู่ระบบ กรุณาเข้าสู่ระบบเพื่อเขียนรีวิว</span>
+            <Link href="/auth/login" className="btn btn-sm btn-primary">
+              เข้าสู่ระบบ
+            </Link>
+          </div>
+        )}
 
         <div className="card card-body" style={{ padding: '2rem' }}>
           <form onSubmit={handleSubmit}>
@@ -94,6 +148,7 @@ export default function WriteReviewPage() {
                 value={selectedCondoId}
                 onChange={e => setSelectedCondoId(e.target.value)}
                 required
+                disabled={loading}
               >
                 {condos.map(c => (
                   <option key={c.id} value={c.id}>
@@ -111,11 +166,12 @@ export default function WriteReviewPage() {
                     key={star}
                     type="button"
                     onClick={() => setRating(star)}
+                    disabled={loading}
                     style={{
                       fontSize: '1.8rem',
                       background: 'none',
                       border: 'none',
-                      cursor: 'pointer',
+                      cursor: loading ? 'not-allowed' : 'pointer',
                       color: star <= rating ? 'var(--warning)' : '#4a4860',
                       transition: 'transform 0.15s ease',
                       transform: star === rating ? 'scale(1.2)' : 'scale(1)',
@@ -131,7 +187,7 @@ export default function WriteReviewPage() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">หัวข้อรีวิว *</label>
+              <label className="form-label">หัวข้อรีวิว * (อย่างน้อย 3 ตัวอักษร)</label>
               <input
                 type="text"
                 className="form-control"
@@ -139,11 +195,12 @@ export default function WriteReviewPage() {
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 required
+                disabled={loading}
               />
             </div>
 
             <div className="form-group">
-              <label className="form-label">รายละเอียดความประทับใจ *</label>
+              <label className="form-label">รายละเอียดความประทับใจ * (อย่างน้อย 10 ตัวอักษร)</label>
               <textarea
                 className="form-control"
                 rows={4}
@@ -151,6 +208,7 @@ export default function WriteReviewPage() {
                 value={content}
                 onChange={e => setContent(e.target.value)}
                 required
+                disabled={loading}
               />
             </div>
 
@@ -163,6 +221,7 @@ export default function WriteReviewPage() {
                   placeholder="เช่น สระว่ายน้ำใหญ่, ใกล้ BTS"
                   value={pros}
                   onChange={e => setPros(e.target.value)}
+                  disabled={loading}
                 />
               </div>
 
@@ -174,6 +233,7 @@ export default function WriteReviewPage() {
                   placeholder="เช่น ที่จอดรถน้อย, ค่าส่วนกลางสูง"
                   value={cons}
                   onChange={e => setCons(e.target.value)}
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -183,6 +243,7 @@ export default function WriteReviewPage() {
                 type="button"
                 className="btn btn-secondary"
                 onClick={() => router.back()}
+                disabled={loading}
               >
                 ยกเลิก
               </button>
@@ -190,6 +251,7 @@ export default function WriteReviewPage() {
                 type="submit"
                 className="btn btn-primary"
                 disabled={loading}
+                aria-busy={loading}
               >
                 {loading ? '⏳ กำลังส่งรีวิว...' : '🚀 โพสต์รีวิว'}
               </button>
@@ -198,5 +260,6 @@ export default function WriteReviewPage() {
         </div>
       </div>
     </div>
+
   );
 }
