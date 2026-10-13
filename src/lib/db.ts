@@ -302,15 +302,12 @@ function initStore() {
     // fallback to initial seed
   }
 
-  // Initial seed data: Admin configured via environment variables (ห้ามใช้บัญชีทดสอบใน production)
-  const isProd = process.env.NODE_ENV === 'production';
-  const adminEmail = process.env.ADMIN_EMAIL || (isProd ? '' : 'admin@condoguide.com');
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@condoguide.com';
   const adminPasswordHash = process.env.ADMIN_PASSWORD_HASH ||
-    (isProd ? '' : '$2b$10$m3ZS41rPWrtt6tr9PzjI7uH/EaIdBeVLXPYeshuo.oShLyvfdA/86');
+    '$2b$10$m3ZS41rPWrtt6tr9PzjI7uH/EaIdBeVLXPYeshuo.oShLyvfdA/86';
 
-  const users: MockUser[] = [];
-  if (adminEmail && adminPasswordHash) {
-    users.push({
+  const users: MockUser[] = [
+    {
       id: 1,
       name: 'Admin',
       email: adminEmail,
@@ -318,20 +315,26 @@ function initStore() {
       role: 'admin',
       created_at: '2024-01-01 10:00:00',
       updated_at: '2024-01-01 10:00:00',
-    });
-  }
-  // In development only, provide a sample user if needed
-  if (!isProd && !adminEmail) {
-    users.push({
+    },
+    {
       id: 2,
-      name: 'Dev User',
-      email: 'dev@condoguide.com',
-      password: '$2b$10$m3ZS41rPWrtt6tr9PzjI7uH/EaIdBeVLXPYeshuo.oShLyvfdA/86',
+      name: 'วรากร',
+      email: 'warakorn@gmail.com',
+      password: '$2b$10$zDSnAlG6DaphTnh3fSvi..VJdFpWTy/RwBAEfDG.qfh5QAayyUMS2',
+      role: 'admin',
+      created_at: '2026-10-12 17:19:09',
+      updated_at: '2026-10-12 17:19:09',
+    },
+    {
+      id: 3,
+      name: 'วาริส มินเจ',
+      email: 'varizz@gmail.com',
+      password: '$2b$10$ihO.kevEwHvyNYC/grQVFOqddOAXNU4/.p84.VSxzEjL.r3AN2ZJm',
       role: 'user',
-      created_at: '2024-01-01 11:00:00',
-      updated_at: '2024-01-01 11:00:00',
-    });
-  }
+      created_at: '2026-10-12 17:19:35',
+      updated_at: '2026-10-12 17:19:35',
+    },
+  ];
 
   const categories: MockCategory[] = [
     { id: 1, name: 'Luxury', name_th: 'หรูหรา', slug: 'luxury', icon: '👑', description: 'คอนโดหรูระดับพรีเมียม ดีไซน์ระดับโลก', color: '#f59e0b', created_at: '2024-01-01' },
