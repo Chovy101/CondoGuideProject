@@ -22,14 +22,6 @@
 - [x] **Responsive UI:** รองรับการแสดงผลทุกหน้าจอบน Desktop, Tablet และ Mobile สไตล์ Modern Dark Glassmorphism
 
 ---
-
-## บัญชีทดสอบ (Test Accounts)
-
-| สิทธิ์ (Role) | อีเมล (Email) | รหัสผ่าน (Password) | สิทธิ์การเข้าถึง |
-| :--- | :--- | :--- | :--- |
-| **Admin** | `admin@condoguide.com` | `password` | เข้าใช้งานได้ทุกหน้า รวมทั้งแผงควบคุม `/admin` |
-| **User** | `user@condoguide.com` | `password` | ค้นหาคอนโด, เขียนรีวิว, จัดการโปรไฟล์ |
-
 ---
 
 ##  วิธีการติดตั้งและเริ่มใช้งาน
